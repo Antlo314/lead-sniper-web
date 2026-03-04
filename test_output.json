@@ -1,0 +1,12 @@
+{
+  "craigslist": {
+    "city": "newyork",
+    "success": false,
+    "error": "Status code 403"
+  },
+  "reddit": {
+    "success": true,
+    "count": 15,
+    "sample": "[HIRING] Vector artist to refine card game designs - $300"
+  }
+}

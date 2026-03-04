@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import Parser from 'rss-parser';
 
+export const dynamic = 'force-dynamic';
+
 const URGENCY_WORDS = ['urgent', 'asap', 'immediately', 'yesterday', 'emergency', 'fast', 'quick', 'down right now', 'crashed'];
 const BUDGET_WORDS = ['willing to pay', 'budget', '$$', 'cash', 'paid', 'high ticket', 'lucrative', 'compensation'];
 const TIME_WASTERS = ['equity', 'unpaid', 'rev share', 'revenue share', 'co-founder', 'cofounder', 'startup opportunity', 'no budget', 'deferred pay'];
 const BOS_KEYWORDS = ['mess', 'manual data entry', 'excel', 'spreadsheets', 'unorganized', 'too many emails', 'administrative', 'bottleneck'];
 
-const REDDIT_SOURCES = ['forhire', 'smallbusiness', 'Entrepreneur'];
-const CRAIGSLIST_HUBS = ['newyork', 'sfbay', 'losangeles', 'austin'];
+const REDDIT_SOURCES = ['forhire', 'smallbusiness', 'Entrepreneur', 'sweatystartup', 'slavelabour'];
 
 interface Lead {
     platform: string;
@@ -66,28 +67,7 @@ function generatePitch(lead: Lead): string {
     return "Hi there, I came across your post and I'm highly confident I can execute this perfectly and quickly. I build high-end web apps, automations, and custom software. When are you looking to get this started? I have capacity this week.";
 }
 
-async function fetchCraigslist(city: string): Promise<Lead[]> {
-    const parser = new Parser();
-    const jobs: Lead[] = [];
-    try {
-        // Craigslist Computer Gigs RSS is still fully public and active
-        const feedUrl = `https://${city}.craigslist.org/search/cpg?format=rss`;
-        const feed = await parser.parseURL(feedUrl);
 
-        feed.items.forEach(item => {
-            jobs.push({
-                platform: `Craigslist (${city})`,
-                title: item.title || 'Untitled',
-                description: item.contentSnippet || item.content || '',
-                link: item.link || '',
-                published: item.isoDate || new Date().toISOString()
-            });
-        });
-    } catch (e) {
-        console.error(`Craigslist RSS parser failed for city: ${city}`);
-    }
-    return jobs;
-}
 
 async function fetchReddit(subreddit: string): Promise<Lead[]> {
     const jobs: Lead[] = [];
@@ -127,14 +107,10 @@ async function fetchReddit(subreddit: string): Promise<Lead[]> {
 
 export async function GET() {
     try {
-        const clPromises = CRAIGSLIST_HUBS.map(c => fetchCraigslist(c));
         const redditPromises = REDDIT_SOURCES.map(r => fetchReddit(r));
-
-        const clResults = await Promise.all(clPromises);
         const redditResults = await Promise.all(redditPromises);
 
         let allLeads = [
-            ...clResults.flat(),
             ...redditResults.flat()
         ];
 
