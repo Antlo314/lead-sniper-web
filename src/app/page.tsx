@@ -10,6 +10,7 @@ interface Lead {
   published: string;
   score: number;
   pitch: string;
+  extractedBudget?: string;
 }
 
 export default function Home() {
@@ -57,9 +58,16 @@ export default function Home() {
           {leads.map((lead, index) => (
             <div key={index} className="lead-card">
               <div className="card-header">
-                <span className={`score-badge ${lead.score >= 80 ? 'urgent' : ''}`}>
-                  Score: {lead.score}/100
-                </span>
+                <div>
+                  <span className={`score-badge ${lead.score >= 80 ? 'urgent' : ''}`}>
+                    Score: {lead.score}/100
+                  </span>
+                  {lead.extractedBudget && (
+                    <span className="platform-badge" style={{ marginLeft: '12px', background: 'rgba(57, 255, 20, 0.15)', color: '#39ff14', border: '1px solid rgba(57, 255, 20, 0.4)' }}>
+                      💰 {lead.extractedBudget}
+                    </span>
+                  )}
+                </div>
                 <span className="platform-badge">{lead.platform}</span>
               </div>
 
