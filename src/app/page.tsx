@@ -1,60 +1,96 @@
-"use client";
-
-import { useEffect, useState } from 'react';
-
-interface Lead {
-  platform: string;
-  title: string;
-  description: string;
-  link: string;
-  published: string;
-  score: number;
-  pitch: string;
-  extractedBudget?: string;
-}
+'use client';
+import { useState, useEffect } from 'react';
+import { Lead, REDDIT_SOURCES, calculateScore, generatePitch, extractBudget } from '@/lib/engine';
 
 export default function Home() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetchLeads();
-  }, []);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const fetchLeads = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/leads');
-      const data = await res.json();
-      setLeads(data);
-    } catch (e) {
-      console.error(e);
+      // Client-side execution directly from the user's browser IP
+      const redditPromises = REDDIT_SOURCES.map(async (subreddit) => {
+        try {
+          const res = await fetch(`https://www.reddit.com/r/${subreddit}/new.json?limit=15`);
+          if (!res.ok) return [];
+          const data = await res.json();
+
+          const jobs: Lead[] = [];
+          data?.data?.children?.forEach((post: any) => {
+            const p = post.data;
+            const titleLower = p.title.toLowerCase();
+            const needsHelp = titleLower.includes('[hiring]') || titleLower.includes('[task]') || titleLower.includes('need help') || titleLower.includes('looking for');
+
+            if (needsHelp && !titleLower.includes('[for hire]')) {
+              const textForBudget = `${p.title} ${p.selftext}`;
+              const rawLead = {
+                platform: `Reddit (r/${subreddit})`,
+                title: p.title,
+                description: p.selftext,
+                link: `https://reddit.com${p.permalink}`,
+                published: new Date(p.created_utc * 1000).toISOString()
+              };
+              jobs.push({
+                ...rawLead,
+                score: calculateScore(rawLead.title, rawLead.description),
+                pitch: generatePitch(rawLead),
+                extractedBudget: extractBudget(textForBudget)
+              });
+            }
+          });
+          return jobs;
+        } catch (e) {
+          console.error(`Failed ${subreddit}`);
+          return [];
+        }
+      });
+
+      const redditResults = await Promise.all(redditPromises);
+      let allLeads = redditResults.flat();
+      allLeads = allLeads.sort((a, b) => b.score - a.score).slice(0, 100);
+      setLeads(allLeads);
+    } catch (error) {
+      console.error('Failed to fetch', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const copyPitch = (text: string, index: number) => {
-    navigator.clipboard.writeText(text);
-    setCopied(index);
-    setTimeout(() => setCopied(null), 2000);
+  useEffect(() => {
+    fetchLeads();
+  }, []);
+
+  const handleCopyPitch = (pitch: string, index: number) => {
+    navigator.clipboard.writeText(pitch);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
   };
 
   return (
     <div className="container">
       <header className="header">
-        <h1>🎯 Urgent Lead Sniper</h1>
-        <p>Siphoning the noise to find cash-ready clients in real-time.</p>
-        <button onClick={fetchLeads} className="btn btn-outline" style={{ marginTop: '20px' }}>
-          Refresh Radars
+        <div>
+          <h1 className="title">Urgent Lead Sniper</h1>
+          <p className="subtitle">Real-time Desperation & Cash Tracker 📡</p>
+        </div>
+        <button onClick={fetchLeads} className="primary-btn" disabled={loading}>
+          {loading ? 'Siphoning...' : 'Refresh Radars'}
         </button>
       </header>
 
       {loading ? (
-        <div className="loader">Siphoning web indices...</div>
+        <div className="empty-state">
+          <div className="pulse-ring"></div>
+          <p>Siphoning client-side indices (Bypassing blocks)...</p>
+        </div>
+      ) : leads.length === 0 ? (
+        <div className="empty-state">
+          <p>No high-intent leads found right now. Check back soon.</p>
+        </div>
       ) : (
-        <main>
+        <div className="scrolling-grid">
           {leads.map((lead, index) => (
             <div key={index} className="lead-card">
               <div className="card-header">
@@ -72,30 +108,30 @@ export default function Home() {
               </div>
 
               <h2 className="lead-title">{lead.title}</h2>
-              <p className="lead-desc">{lead.description.substring(0, 300)}...</p>
+              <p className="lead-desc">{lead.description.length > 250 ? lead.description.substring(0, 250) + '...' : lead.description}</p>
 
-              <div className="pitch-container">
-                <h4>Generated Pitch Output</h4>
-                <p className="pitch-text">"{lead.pitch}"</p>
-              </div>
-
-              <div className="action-bar">
-                <a href={lead.link} target="_blank" rel="noopener noreferrer" className="btn btn-outline">
-                  View Original Post
-                </a>
-                <button
-                  onClick={() => copyPitch(lead.pitch, index)}
-                  className="btn btn-primary"
-                >
-                  {copied === index ? 'Copied!' : 'Copy Pitch'}
-                </button>
+              <div className="pitch-section">
+                <div className="pitch-header">
+                  <strong>Generated Pitch 🚀</strong>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <a href={lead.link} target="_blank" rel="noopener noreferrer" className="secondary-btn">
+                      View Post
+                    </a>
+                    <button
+                      onClick={() => handleCopyPitch(lead.pitch, index)}
+                      className="primary-btn"
+                    >
+                      {copiedIndex === index ? 'Copied!' : 'Copy Pitch'}
+                    </button>
+                  </div>
+                </div>
+                <div className="pitch-box">
+                  {lead.pitch}
+                </div>
               </div>
             </div>
           ))}
-          {leads.length === 0 && (
-            <div style={{ textAlign: 'center', color: '#8b949e' }}>No high-intent leads found right now.</div>
-          )}
-        </main>
+        </div>
       )}
     </div>
   );
