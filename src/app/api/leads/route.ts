@@ -6,9 +6,8 @@ const BUDGET_WORDS = ['willing to pay', 'budget', '$$', 'cash', 'paid', 'high ti
 const TIME_WASTERS = ['equity', 'unpaid', 'rev share', 'revenue share', 'co-founder', 'cofounder', 'startup opportunity', 'no budget', 'deferred pay'];
 const BOS_KEYWORDS = ['mess', 'manual data entry', 'excel', 'spreadsheets', 'unorganized', 'too many emails', 'administrative', 'bottleneck'];
 
-// Subreddits where people ask for tech/admin help
-const REDDIT_SOURCES = ['forhire', 'slavelabour', 'smallbusiness', 'Entrepreneur', 'sweatystartup', 'SideProject'];
-const UPWORK_QUERIES = ['automation', 'python', 'wordpress', 'scraper', 'data entry', 'zapier'];
+const REDDIT_SOURCES = ['forhire', 'smallbusiness', 'Entrepreneur'];
+const CRAIGSLIST_HUBS = ['newyork', 'sfbay', 'losangeles', 'austin'];
 
 interface Lead {
     platform: string;
@@ -67,17 +66,17 @@ function generatePitch(lead: Lead): string {
     return "Hi there, I came across your post and I'm highly confident I can execute this perfectly and quickly. I build high-end web apps, automations, and custom software. When are you looking to get this started? I have capacity this week.";
 }
 
-async function fetchUpwork(query: string): Promise<Lead[]> {
+async function fetchCraigslist(city: string): Promise<Lead[]> {
     const parser = new Parser();
     const jobs: Lead[] = [];
     try {
-        // Upwork public RSS feeds are formatted with search queries
-        const feedUrl = `https://www.upwork.com/ab/feed/jobs/rss?q=${encodeURIComponent(query)}&sort=recency`;
+        // Craigslist Computer Gigs RSS is still fully public and active
+        const feedUrl = `https://${city}.craigslist.org/search/cpg?format=rss`;
         const feed = await parser.parseURL(feedUrl);
 
         feed.items.forEach(item => {
             jobs.push({
-                platform: `Upwork (${query})`,
+                platform: `Craigslist (${city})`,
                 title: item.title || 'Untitled',
                 description: item.contentSnippet || item.content || '',
                 link: item.link || '',
@@ -85,7 +84,7 @@ async function fetchUpwork(query: string): Promise<Lead[]> {
             });
         });
     } catch (e) {
-        console.error(`Upwork RSS parser failed for query: ${query}`);
+        console.error(`Craigslist RSS parser failed for city: ${city}`);
     }
     return jobs;
 }
@@ -93,10 +92,15 @@ async function fetchUpwork(query: string): Promise<Lead[]> {
 async function fetchReddit(subreddit: string): Promise<Lead[]> {
     const jobs: Lead[] = [];
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second strict timeout for Vercel
+
         const res = await fetch(`https://www.reddit.com/r/${subreddit}/new.json?limit=15`, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) LeadSniper/3.0' },
-            next: { revalidate: 60 }
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' },
+            next: { revalidate: 60 },
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
         if (!res.ok) return jobs;
 
@@ -123,14 +127,14 @@ async function fetchReddit(subreddit: string): Promise<Lead[]> {
 
 export async function GET() {
     try {
-        const upworkPromises = UPWORK_QUERIES.map(q => fetchUpwork(q));
+        const clPromises = CRAIGSLIST_HUBS.map(c => fetchCraigslist(c));
         const redditPromises = REDDIT_SOURCES.map(r => fetchReddit(r));
 
-        const upworkResults = await Promise.all(upworkPromises);
+        const clResults = await Promise.all(clPromises);
         const redditResults = await Promise.all(redditPromises);
 
         let allLeads = [
-            ...upworkResults.flat(),
+            ...clResults.flat(),
             ...redditResults.flat()
         ];
 
