@@ -10,27 +10,31 @@ export default function Home() {
   const fetchLeads = async () => {
     setLoading(true);
     try {
-      // Client-side execution directly from the user's browser IP
+      // Client-side execution using rss2json proxy to bypass Reddit CORS and Vercel IP blocks
       const redditPromises = REDDIT_SOURCES.map(async (subreddit) => {
         try {
-          const res = await fetch(`https://www.reddit.com/r/${subreddit}/new.json?limit=15`);
+          const feedUrl = encodeURIComponent(`https://www.reddit.com/r/${subreddit}/new.rss`);
+          const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`;
+          const res = await fetch(apiUrl);
           if (!res.ok) return [];
           const data = await res.json();
 
           const jobs: Lead[] = [];
-          data?.data?.children?.forEach((post: any) => {
-            const p = post.data;
-            const titleLower = p.title.toLowerCase();
+          data?.items?.forEach((item: any) => {
+            const titleLower = item.title.toLowerCase();
             const needsHelp = titleLower.includes('[hiring]') || titleLower.includes('[task]') || titleLower.includes('need help') || titleLower.includes('looking for');
 
             if (needsHelp && !titleLower.includes('[for hire]')) {
-              const textForBudget = `${p.title} ${p.selftext}`;
+              // Strip HTML formatting from description added by Reddit RSS
+              const cleanDesc = item.content.replace(/<[^>]*>?/gm, '');
+              const textForBudget = `${item.title} ${cleanDesc}`;
+
               const rawLead = {
                 platform: `Reddit (r/${subreddit})`,
-                title: p.title,
-                description: p.selftext,
-                link: `https://reddit.com${p.permalink}`,
-                published: new Date(p.created_utc * 1000).toISOString()
+                title: item.title,
+                description: cleanDesc,
+                link: item.link,
+                published: item.pubDate
               };
               jobs.push({
                 ...rawLead,
@@ -91,7 +95,7 @@ export default function Home() {
         </div>
       ) : (
         <div className="scrolling-grid">
-          {leads.map((lead, index) => (
+          {leads.map((lead: Lead, index: number) => (
             <div key={index} className="lead-card">
               <div className="card-header">
                 <div>
