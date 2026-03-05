@@ -54,9 +54,8 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    fetchLeads();
-  }, [activePlatform, searchHub, sortOrder]);
+  // Removed the useEffect that auto-fetches on filter change.
+  // We now rely on an explicit "Search" button.
 
   // We filter client-side to prevent over-fetching APIs 
   const filteredAndSortedLeads = () => {
@@ -751,7 +750,7 @@ export default function Home() {
                 className="platform-filter"
                 value={activePlatform}
                 onChange={(e) => setActivePlatform(e.target.value as PlatformFilter)}
-                style={{ background: 'rgba(255,255,255,0.05)', color: '#c9d1d9', padding: '6px 12px', borderRadius: '6px', border: '1px solid #30363d' }}
+                style={{ background: '#161b22', color: '#ffffff', padding: '10px 12px', borderRadius: '6px', border: '1px solid #30363d', appearance: 'none' }}
               >
                 <option value="All">All Radars</option>
                 <option value="Reddit">Reddit</option>
@@ -770,7 +769,7 @@ export default function Home() {
                   className="radius-filter"
                   value={searchHub}
                   onChange={(e) => setSearchHub(e.target.value)}
-                  style={{ background: 'rgba(255,255,255,0.05)', color: '#c9d1d9', padding: '6px 12px', borderRadius: '6px', border: '1px solid #30363d' }}
+                  style={{ background: '#161b22', color: '#ffffff', padding: '10px 12px', borderRadius: '6px', border: '1px solid #30363d', appearance: 'none' }}
                 >
                   {Object.entries(CRAIGSLIST_STATES).map(([key, stateObj]) => (
                     <option key={key} value={key}>{stateObj.label} ({stateObj.subdomains.length} markets)</option>
@@ -782,7 +781,7 @@ export default function Home() {
                 className="time-filter"
                 value={timeFilter}
                 onChange={(e) => setTimeFilter(e.target.value)}
-                style={{ background: 'rgba(255,255,255,0.05)', color: '#c9d1d9', padding: '10px 12px', borderRadius: '6px', border: '1px solid #30363d' }}
+                style={{ background: '#161b22', color: '#ffffff', padding: '10px 12px', borderRadius: '6px', border: '1px solid #30363d', appearance: 'none' }}
               >
                 <option value="All Time">🕒 All Time</option>
                 <option value="Last 24 Hours">🕒 Last 24 Hours</option>
@@ -794,7 +793,7 @@ export default function Home() {
                 className="budget-filter"
                 value={budgetFilter}
                 onChange={(e) => setBudgetFilter(e.target.value)}
-                style={{ background: 'rgba(255,255,255,0.05)', color: '#c9d1d9', padding: '10px 12px', borderRadius: '6px', border: '1px solid #30363d' }}
+                style={{ background: '#161b22', color: '#ffffff', padding: '10px 12px', borderRadius: '6px', border: '1px solid #30363d', appearance: 'none' }}
               >
                 <option value="All Budgets">💰 All Budgets</option>
                 <option value="High-Ticket ($10k+)">💎 High-Ticket ($10k+)</option>
@@ -805,15 +804,15 @@ export default function Home() {
                 className="sort-filter"
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value)}
-                style={{ background: 'rgba(255,255,255,0.05)', color: '#c9d1d9', padding: '10px 12px', borderRadius: '6px', border: '1px solid #30363d' }}
+                style={{ background: '#161b22', color: '#ffffff', padding: '10px 12px', borderRadius: '6px', border: '1px solid #30363d', appearance: 'none' }}
               >
                 <option value="Score (High-Low)">🏆 Score (High-Low)</option>
                 <option value="Pay Rate (High-Low)">💰 Pay Rate (High-Low)</option>
                 <option value="Date (Newest)">⏳ Date (Newest)</option>
               </select>
             </div>
-            <button onClick={fetchLeads} className="btn btn-primary" disabled={loading}>
-              {loading ? 'Scanning...' : 'Refresh Radars'}
+            <button onClick={fetchLeads} className="btn btn-primary" disabled={loading} style={{ padding: '12px 24px', fontSize: '1.1rem' }}>
+              {loading ? 'Scanning...' : 'Search Radars 📡'}
             </button>
           </div>
 
