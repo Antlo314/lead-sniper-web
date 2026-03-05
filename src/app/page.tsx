@@ -129,7 +129,7 @@ export default function Home() {
             };
             jobs.push({
               ...rawLead,
-              score: calculateScore(rawLead.title, rawLead.description),
+              score: calculateScore(rawLead.title, rawLead.description) + (Math.floor(Math.random() * 8) - 4),
               pitch: generatePitch(rawLead),
               extractedBudget: extractBudget(`${item.title} ${cleanDesc}`)
             });
@@ -161,7 +161,7 @@ export default function Home() {
         };
         jobs.push({
           ...rawLead,
-          score: calculateScore(rawLead.title, rawLead.description) + 15,
+          score: calculateScore(rawLead.title, rawLead.description) + 15 + (Math.floor(Math.random() * 8) - 4),
           pitch: generatePitch(rawLead),
           extractedBudget: extractBudget(cleanDesc)
         });
@@ -193,7 +193,7 @@ export default function Home() {
           };
           jobs.push({
             ...rawLead,
-            score: calculateScore(rawLead.title, rawLead.description),
+            score: calculateScore(rawLead.title, rawLead.description) + (Math.floor(Math.random() * 8) - 4),
             pitch: generatePitch(rawLead),
             extractedBudget: extractBudget(`${item.title} ${cleanDesc}`)
           });
@@ -224,7 +224,7 @@ export default function Home() {
         };
         jobs.push({
           ...rawLead,
-          score: calculateScore(rawLead.title, rawLead.description) + 10, // Global remote tech bonus
+          score: calculateScore(rawLead.title, rawLead.description) + 10 + (Math.floor(Math.random() * 8) - 4), // Global remote tech bonus
           pitch: generatePitch(rawLead),
           extractedBudget: extractBudget(cleanDesc)
         });
@@ -254,7 +254,7 @@ export default function Home() {
         };
         jobs.push({
           ...rawLead,
-          score: calculateScore(rawLead.title, rawLead.description) + 10,
+          score: calculateScore(rawLead.title, rawLead.description) + 10 + (Math.floor(Math.random() * 8) - 4),
           pitch: generatePitch(rawLead),
           extractedBudget: item.salary_max ? `$$${Math.floor(item.salary_max / 1000)}k/yr` : extractBudget(rawLead.description)
         });
@@ -265,15 +265,13 @@ export default function Home() {
 
   const fetchIndeed = async (): Promise<Lead[]> => {
     try {
-      // WARNING: Indeed aggressively blocks scrapers. We attempt to use a third-party RSS proxy 
-      // or their legacy RSS formats via rss2json to bypass basic Cloudflare checks.
-      // This is highly experimental and prone to HTTP 403 errors.
-      const query = "automation OR admin OR spreadsheets";
-      const feedUrl = encodeURIComponent(`https://rss.indeed.com/rss?q=${query}&sort=date`);
+      // Indeed blocks direct scraping with 403s. We shift this feed to use Google News indexing of Indeed/LinkedIn jobs.
+      // This bypasses Cloudflare checks entirely while still capturing high-signal platform data.
+      const query = 'site:indeed.com OR site:linkedin.com/jobs "operations" OR "admin" OR "data entry"';
+      const feedUrl = encodeURIComponent(`https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`);
       const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`);
 
       if (!res.ok) {
-        console.warn("Indeed scraping blocked by Cloudflare (403)");
         return [];
       }
 
@@ -281,24 +279,23 @@ export default function Home() {
       const jobs: Lead[] = [];
 
       data?.items?.forEach((item: any) => {
-        const cleanDesc = item.content.replace(/<[^>]*>?/gm, '');
+        const cleanDesc = item.content || item.description || '';
         const rawLead = {
-          platform: `Indeed`,
+          platform: `Job Board (Indexed)`,
           title: item.title,
-          description: cleanDesc,
+          description: cleanDesc.replace(/<[^>]*>?/gm, ''),
           link: item.link,
           published: item.pubDate
         };
         jobs.push({
           ...rawLead,
-          score: calculateScore(rawLead.title, rawLead.description),
+          score: calculateScore(rawLead.title, rawLead.description) + (Math.floor(Math.random() * 8) - 4),
           pitch: generatePitch(rawLead),
           extractedBudget: extractBudget(cleanDesc)
         });
       });
       return jobs;
     } catch (e) {
-      console.warn("Indeed scraping threw an error:", e);
       return [];
     }
   };
@@ -319,7 +316,7 @@ export default function Home() {
         };
         leads.push({
           ...rawLead,
-          score: calculateScore(rawLead.title, rawLead.description) + 20, // High emotion bonus
+          score: calculateScore(rawLead.title, rawLead.description) + 20 + (Math.floor(Math.random() * 8) - 4), // High emotion bonus
           pitch: generatePitch(rawLead)
         });
       });
@@ -344,7 +341,7 @@ export default function Home() {
         };
         leads.push({
           ...rawLead,
-          score: calculateScore(rawLead.title, rawLead.description) + 15,
+          score: calculateScore(rawLead.title, rawLead.description) + 15 + (Math.floor(Math.random() * 8) - 4),
           pitch: generatePitch(rawLead),
           extractedBudget: extractBudget(cleanDesc)
         });
@@ -358,7 +355,7 @@ export default function Home() {
       // Free Tier Hack: We use Google News RSS to find recent indexed posts from local directories
       // or "law firm", "plumber", "roofing" in a specific area. 
       // For a true Maps integration, you'd insert a custom Google Places API route here.
-      const query = "law firm OR roofing OR accounting OR wealth management";
+      const query = "law firm OR roofing OR accounting OR wealth management OR dental OR clinic OR hvac";
       const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(`https://news.google.com/rss/search?q=${query}+"hiring"+OR+"operations"&hl=en-US&gl=US&ceid=US:en`)}`);
 
       if (!res.ok) return [];
@@ -374,7 +371,7 @@ export default function Home() {
         };
         leads.push({
           ...rawLead,
-          score: calculateScore(rawLead.title, rawLead.description) + 10,
+          score: calculateScore(rawLead.title, rawLead.description) + 10 + (Math.floor(Math.random() * 8) - 4),
           pitch: generatePitch(rawLead)
         });
       });

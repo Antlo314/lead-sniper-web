@@ -1,7 +1,7 @@
 export const URGENCY_WORDS = ['urgent', 'asap', 'immediately', 'yesterday', 'emergency', 'fast', 'quick', 'down right now', 'crashed'];
 export const BUDGET_WORDS = ['willing to pay', 'budget', '$$', 'cash', 'paid', 'high ticket', 'lucrative', 'compensation'];
 export const TIME_WASTERS = ['equity', 'unpaid', 'rev share', 'revenue share', 'co-founder', 'cofounder', 'startup opportunity', 'no budget', 'deferred pay'];
-export const BOS_KEYWORDS = ['mess', 'manual data entry', 'excel', 'spreadsheets', 'unorganized', 'too many emails', 'administrative', 'bottleneck', 'data entry', 'virtual assistant', 'office manager', 'operations', 'logistics'];
+export const BOS_KEYWORDS = ['mess', 'manual data entry', 'excel', 'spreadsheets', 'unorganized', 'too many emails', 'administrative', 'bottleneck', 'data entry', 'virtual assistant', 'office manager', 'operations', 'logistics', 'automation', 'zapier', 'makeing mistakes', 'repetitive', 'typing'];
 export const PHYSICAL_PRESENCE = ['receptionist', 'door', 'warehouse', 'valet', 'in-person', 'front desk', 'cleaning', 'driving', 'forklift', 'cashier', 'stocker', 'janitor', 'delivery', 'cook', 'server', 'bartender', 'guard'];
 export const OUT_OF_SCOPE_TECH = ['c++', 'java ', ' swift ', 'ios', 'android', 'kotlin', ' rust ', 'embedded', 'unity', 'unreal', '.net', 'c#', 'objective-c', 'game developer'];
 export const ANTIGRAVITY_TECH = ['next.js', 'react', 'python', 'supabase', 'vercel', 'automation', 'zapier', 'make.com', 'ai ', 'llm', 'openai', 'scraping', 'typescript', 'tailwind', 'api', 'chatbot', 'agent'];
@@ -9,7 +9,7 @@ export const REDDIT_SOURCES = ['forhire', 'smallbusiness', 'Entrepreneur', 'swea
 
 // Upwork specifically uses RSS for custom searches. 
 // %28 = ( ... %29 = ) ... %20OR%20 = OR
-export const UPWORK_RSS_URL = "https://www.upwork.com/ab/feed/jobs/rss?q=%28data%20entry%20OR%20virtual%20assistant%20OR%20admin%29";
+export const UPWORK_RSS_URL = "https://www.upwork.com/ab/feed/jobs/rss?q=%28data%20entry%20OR%20virtual%20assistant%20OR%20admin%20OR%20excel%20OR%20spreadsheet%20OR%20zapier%20OR%20automation%29";
 
 // Niche Developer Job Boards
 export const WWR_RSS_URL = "https://weworkremotely.com/categories/remote-customer-support-jobs.rss";
@@ -17,7 +17,7 @@ export const REMOTE_OK_RSS_URL = "https://remoteok.com/api"; // Returns JSON nat
 
 // Tier 1: The Frustration Engine (Twitter/X Google Dork)
 // We use Google News to index Twitter posts containing specific pain points.
-export const TWITTER_FRUSTRATION_RSS = 'https://news.google.com/rss/search?q=site:twitter.com+"hate+spreadsheets"+OR+"drowning+in+data"+OR+"Zapier+is+broken"+OR+"manual+entry"&hl=en-US&gl=US&ceid=US:en';
+export const TWITTER_FRUSTRATION_RSS = 'https://news.google.com/rss/search?q=site:twitter.com+"hate+spreadsheets"+OR+"drowning+in+data"+OR+"Zapier+is+broken"+OR+"manual+entry"+OR+"too+many+tools"+OR+"data+migration"&hl=en-US&gl=US&ceid=US:en';
 
 // Tier 1: The Startup Drain (Wellfound/AngelList workaround)
 // Since Wellfound is heavily gated, we search YCombinator's HackerNews Who Is Hiring instead for max startup density.
