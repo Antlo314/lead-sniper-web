@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Lead, REDDIT_SOURCES, UPWORK_RSS_URL, CRAIGSLIST_STATES, WWR_RSS_URL, REMOTE_OK_RSS_URL, calculateScore, generatePitch, extractBudget, generateAntigravityAnalysis, FeasibilityAnalysis } from '@/lib/engine';
+import { Lead, REDDIT_SOURCES, UPWORK_RSS_URL, CRAIGSLIST_STATES, WWR_RSS_URL, REMOTE_OK_RSS_URL, calculateScore, generatePitch, extractBudget, generateAntigravityAnalysis, FeasibilityAnalysis, generateTailoredResume } from '@/lib/engine';
 
 export type PipelineStage = 'Saved' | 'Contacted' | 'Replied' | 'Closed';
 export type PlatformFilter = 'All' | 'Reddit' | 'Upwork' | 'Craigslist' | 'WWR' | 'RemoteOK' | 'Indeed' | 'Frustration' | 'Startup' | 'Local';
@@ -21,6 +21,7 @@ export default function Home() {
   const [sortOrder, setSortOrder] = useState<string>('Score (High-Low)');
   const [analyzedLeads, setAnalyzedLeads] = useState<Record<string, FeasibilityAnalysis>>({});
   const [isAnalyzing, setIsAnalyzing] = useState<string | null>(null);
+  const [showResumeFor, setShowResumeFor] = useState<SavedLead | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('leadSniperCRM');
@@ -429,6 +430,9 @@ export default function Home() {
                   <button onClick={() => generateMockAIDraft(lead as SavedLead)} className="btn btn-outline" style={{ padding: '4px 8px', fontSize: '0.8rem' }}>
                     ✨ AI Draft
                   </button>
+                  <button onClick={() => setShowResumeFor(lead as SavedLead)} className="btn btn-outline" style={{ padding: '4px 8px', fontSize: '0.8rem' }}>
+                    📄 Resume
+                  </button>
                   <button onClick={() => handleCopyPitch(lead.pitch, id)} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: '0.8rem' }}>
                     {copiedIndex === id ? 'Copied!' : 'Copy'}
                   </button>
@@ -653,6 +657,46 @@ export default function Home() {
       {activeTab === 'crm' && (
         <div className="crm-view">
           {renderKanbanBoard()}
+        </div>
+      {/* Resume Modal */}
+      {showResumeFor && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: '#ffffff', color: '#1a1a1a', padding: '30px',
+            borderRadius: '8px', width: '90%', maxWidth: '800px',
+            maxHeight: '90vh', overflowY: 'auto',
+            fontFamily: 'Helvetica, Arial, sans-serif'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', borderBottom: '2px solid #eaeaea', paddingBottom: '15px' }}>
+              <h2 style={{ margin: 0, color: '#0d1117' }}>Resume Preview (Tailored)</h2>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(generateTailoredResume(showResumeFor));
+                    setCopiedIndex('resume');
+                    setTimeout(() => setCopiedIndex(null), 2000);
+                  }}
+                  className="btn btn-primary"
+                  style={{ background: '#00ccaa', color: '#fff' }}
+                >
+                  {copiedIndex === 'resume' ? 'Copied!' : 'Copy Text'}
+                </button>
+                <button onClick={() => setShowResumeFor(null)} className="btn btn-outline" style={{ borderColor: '#d0d7de', color: '#24292f' }}>Close</button>
+              </div>
+            </div>
+            <pre style={{
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'inherit',
+              lineHeight: 1.6,
+              fontSize: '0.95rem'
+            }}>
+              {generateTailoredResume(showResumeFor)}
+            </pre>
+          </div>
         </div>
       )}
     </div>

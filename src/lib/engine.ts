@@ -261,3 +261,52 @@ export function generateAntigravityAnalysis(title: string, description: string):
         specs: ["Stack: Node.js, Vercel Serverless Functions", "Est. Execution Time: 3 Days", "Risk Matrix: Dependent on Client API Access"]
     };
 }
+
+export function generateTailoredResume(lead: Lead): string {
+    const text = `${lead.title} ${lead.description}`.toLowerCase();
+
+    // Dynamic Tech Extraction
+    const activeTech = [];
+    if (text.includes('react') || text.includes('next.js') || text.includes('nextjs')) activeTech.push('Next.js/React');
+    if (text.includes('python')) activeTech.push('Python');
+    if (text.includes('node') || text.includes('typescript') || text.includes('javascript')) activeTech.push('Node.js/TypeScript');
+    if (text.includes('supabase') || text.includes('sql') || text.includes('database')) activeTech.push('Supabase/PostgreSQL');
+    if (text.includes('automation') || text.includes('zapier') || text.includes('make.com')) activeTech.push('Make.com/Zapier Automations');
+    if (text.includes('ai ') || text.includes('llm') || text.includes('openai') || text.includes('prompt')) activeTech.push('OpenAI/LLM Integration');
+    if (text.includes('scrape') || text.includes('scraping') || text.includes('data entry')) activeTech.push('Automated Web Scraping');
+
+    // Default to general full-stack if no specific keywords hit
+    if (activeTech.length === 0) {
+        activeTech.push('Full-Stack Web Development', 'Business Process Automation', 'API Integration');
+    }
+
+    const techString = activeTech.join(', ');
+
+    return `ANTHONY CARR
+Atlanta, GA | Remote Ready | anthony@lumenlabs.com
+
+PROFESSIONAL SUMMARY
+Results-driven operations expert and technical founder specializing in ${techString}. Proven track record of bridging the gap between manual administrative bottlenecks and scalable software solutions. 
+
+EXPERIENCE
+
+Lumen Labs | Owner & CEO
+Remote | 2023 - Present
+• Architected and deployed custom Business Operating Systems (BOS) for enterprise and SME clients, completely eliminating manual data entry pipelines.
+• Engineered robust technical solutions heavily utilizing ${techString} to automate complex operational workflows and reduce client recurring payroll costs.
+• Managed end-to-end product lifecycles from initial technical feasibility audits to final deployment on Vercel and cloud infrastructure.
+
+Operations Coordinator
+Atlanta, GA (Hybrid) | 2021 - 2023
+• Streamlined internal communications and logistics workflows, reducing average reporting delays by 40%.
+• Acted as the primary technical liaison for data-layer management, continuously migrating legacy spreadsheet systems into unified CRM dashboards.
+• Audited daily operational bottlenecks and implemented rapid digital solutions to maintain team KPIs.
+
+Schrif Landscaping | Laborer / Field Operations
+Jefferson City, MO | 2017 - 2021
+• Executed high-precision physical installations and maintained strict project timelines under demanding environmental conditions.
+• Coordinated directly with site managers to ensure equipment logistics and daily execution plans were met safely and efficiently.
+
+SKILLS & CAPABILITIES
+Custom Software Development, Systems Architecture, Workflow Automation, Process Engineering, ${techString}`;
+}
