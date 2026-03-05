@@ -1,60 +1,358 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Lead, REDDIT_SOURCES, calculateScore, generatePitch, extractBudget } from '@/lib/engine';
+import { Lead, REDDIT_SOURCES, UPWORK_RSS_URL, CRAIGSLIST_STATES, WWR_RSS_URL, REMOTE_OK_RSS_URL, calculateScore, generatePitch, extractBudget, generateAntigravityAnalysis, FeasibilityAnalysis } from '@/lib/engine';
+
+export type PipelineStage = 'Saved' | 'Contacted' | 'Replied' | 'Closed';
+export type PlatformFilter = 'All' | 'Reddit' | 'Upwork' | 'Craigslist' | 'WWR' | 'RemoteOK' | 'Indeed' | 'Frustration' | 'Startup' | 'Local';
+
+export interface SavedLead extends Lead {
+  id: string;
+  stage: PipelineStage;
+}
 
 export default function Home() {
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [savedLeads, setSavedLeads] = useState<SavedLead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'radar' | 'crm'>('radar');
+  const [activePlatform, setActivePlatform] = useState<PlatformFilter>('All');
+  const [searchHub, setSearchHub] = useState<string>('TX');
+  const [sortOrder, setSortOrder] = useState<string>('Score (High-Low)');
+  const [analyzedLeads, setAnalyzedLeads] = useState<Record<string, FeasibilityAnalysis>>({});
+  const [isAnalyzing, setIsAnalyzing] = useState<string | null>(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('leadSniperCRM');
+    if (stored) {
+      setSavedLeads(JSON.parse(stored));
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLeads();
+  }, [activePlatform, searchHub, sortOrder]);
+
+  useEffect(() => {
+    localStorage.setItem('leadSniperCRM', JSON.stringify(savedLeads));
+  }, [savedLeads]);
+
+  const sortLeadsArray = (leadsArray: Lead[]) => {
+    return [...leadsArray].sort((a, b) => {
+      if (sortOrder === 'Score (High-Low)') {
+        return b.score - a.score;
+      }
+      if (sortOrder === 'Date (Newest)') {
+        return new Date(b.published).getTime() - new Date(a.published).getTime();
+      }
+      if (sortOrder === 'Pay Rate (High-Low)') {
+        const getPay = (budget?: string) => {
+          if (!budget) return 0;
+          const match = budget.match(/\$\$([0-9]+)/);
+          return match ? parseInt(match[1]) : 0;
+        };
+        return getPay(b.extractedBudget) - getPay(a.extractedBudget);
+      }
+      return 0;
+    });
+  };
+
+  const fetchReddit = async (): Promise<Lead[]> => {
+    const promises = REDDIT_SOURCES.map(async (subreddit) => {
+      try {
+        const feedUrl = encodeURIComponent(`https://www.reddit.com/r/${subreddit}/new.rss`);
+        const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`);
+        if (!res.ok) return [];
+        const data = await res.json();
+
+        const jobs: Lead[] = [];
+        data?.items?.forEach((item: any) => {
+          const titleLower = item.title.toLowerCase();
+          const needsHelp = titleLower.includes('[hiring]') || titleLower.includes('[task]') || titleLower.includes('need help') || titleLower.includes('looking for');
+
+          if (needsHelp && !titleLower.includes('[for hire]')) {
+            const cleanDesc = item.content.replace(/<[^>]*>?/gm, '');
+            const rawLead = {
+              platform: `Reddit (r/${subreddit})`,
+              title: item.title,
+              description: cleanDesc,
+              link: item.link,
+              published: item.pubDate
+            };
+            jobs.push({
+              ...rawLead,
+              score: calculateScore(rawLead.title, rawLead.description),
+              pitch: generatePitch(rawLead),
+              extractedBudget: extractBudget(`${item.title} ${cleanDesc}`)
+            });
+          }
+        });
+        return jobs;
+      } catch (e) { return []; }
+    });
+    const results = await Promise.all(promises);
+    return results.flat();
+  };
+
+  const fetchUpwork = async (): Promise<Lead[]> => {
+    try {
+      const feedUrl = encodeURIComponent(UPWORK_RSS_URL);
+      const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+
+      const jobs: Lead[] = [];
+      data?.items?.forEach((item: any) => {
+        const cleanDesc = item.content.replace(/<[^>]*>?/gm, '');
+        const rawLead = {
+          platform: `Upwork`,
+          title: item.title,
+          description: cleanDesc,
+          link: item.link,
+          published: item.pubDate
+        };
+        jobs.push({
+          ...rawLead,
+          score: calculateScore(rawLead.title, rawLead.description) + 15,
+          pitch: generatePitch(rawLead),
+          extractedBudget: extractBudget(cleanDesc)
+        });
+      });
+      return jobs;
+    } catch (e) { return []; }
+  };
+
+  const fetchCraigslist = async (): Promise<Lead[]> => {
+    // Apply the 50-State "Blast Radius" mapping
+    const targets = CRAIGSLIST_STATES[searchHub]?.subdomains || [];
+
+    const promises = targets.map(async (subdomain) => {
+      try {
+        const feedUrl = encodeURIComponent(`https://${subdomain}.craigslist.org/search/ofc?format=rss`);
+        const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`);
+        if (!res.ok) return [];
+        const data = await res.json();
+
+        const jobs: Lead[] = [];
+        data?.items?.forEach((item: any) => {
+          const cleanDesc = item.content.replace(/<[^>]*>?/gm, '');
+          const rawLead = {
+            platform: `Craigslist (${subdomain})`,
+            title: item.title,
+            description: cleanDesc,
+            link: item.link,
+            published: item.pubDate
+          };
+          jobs.push({
+            ...rawLead,
+            score: calculateScore(rawLead.title, rawLead.description),
+            pitch: generatePitch(rawLead),
+            extractedBudget: extractBudget(`${item.title} ${cleanDesc}`)
+          });
+        });
+        return jobs;
+      } catch (e) { return []; }
+    });
+    const results = await Promise.all(promises);
+    return results.flat();
+  };
+
+  const fetchWWR = async (): Promise<Lead[]> => {
+    try {
+      const feedUrl = encodeURIComponent(WWR_RSS_URL);
+      const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+
+      const jobs: Lead[] = [];
+      data?.items?.forEach((item: any) => {
+        const cleanDesc = item.content.replace(/<[^>]*>?/gm, '');
+        const rawLead = {
+          platform: `We Work Remotely`,
+          title: item.title,
+          description: cleanDesc,
+          link: item.link,
+          published: item.pubDate
+        };
+        jobs.push({
+          ...rawLead,
+          score: calculateScore(rawLead.title, rawLead.description) + 10, // Global remote tech bonus
+          pitch: generatePitch(rawLead),
+          extractedBudget: extractBudget(cleanDesc)
+        });
+      });
+      return jobs;
+    } catch (e) { return []; }
+  };
+
+  const fetchRemoteOK = async (): Promise<Lead[]> => {
+    try {
+      // Remote OK returns raw JSON, no RSS proxy needed, but we must handle CORS if possible.
+      // We will use a general proxy or stick to the direct API if their CORS allows client browsers.
+      // Often, hitting remoteok.com/api from a browser is blocked, but we'll try the direct route first.
+      const res = await fetch(REMOTE_OK_RSS_URL);
+      if (!res.ok) return [];
+      const data = await res.json();
+
+      const jobs: Lead[] = [];
+      // Data is an array, first item is legal text, subsequent are jobs.
+      data.slice(1).forEach((item: any) => {
+        const rawLead = {
+          platform: `Remote OK`,
+          title: item.position,
+          description: item.description.replace(/<[^>]*>?/gm, ''),
+          link: item.url,
+          published: item.date
+        };
+        jobs.push({
+          ...rawLead,
+          score: calculateScore(rawLead.title, rawLead.description) + 10,
+          pitch: generatePitch(rawLead),
+          extractedBudget: item.salary_max ? `$$${Math.floor(item.salary_max / 1000)}k/yr` : extractBudget(rawLead.description)
+        });
+      });
+      return jobs;
+    } catch (e) { return []; }
+  };
+
+  const fetchIndeed = async (): Promise<Lead[]> => {
+    try {
+      // WARNING: Indeed aggressively blocks scrapers. We attempt to use a third-party RSS proxy 
+      // or their legacy RSS formats via rss2json to bypass basic Cloudflare checks.
+      // This is highly experimental and prone to HTTP 403 errors.
+      const query = "automation OR admin OR spreadsheets";
+      const feedUrl = encodeURIComponent(`https://rss.indeed.com/rss?q=${query}&sort=date`);
+      const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`);
+
+      if (!res.ok) {
+        console.warn("Indeed scraping blocked by Cloudflare (403)");
+        return [];
+      }
+
+      const data = await res.json();
+      const jobs: Lead[] = [];
+
+      data?.items?.forEach((item: any) => {
+        const cleanDesc = item.content.replace(/<[^>]*>?/gm, '');
+        const rawLead = {
+          platform: `Indeed`,
+          title: item.title,
+          description: cleanDesc,
+          link: item.link,
+          published: item.pubDate
+        };
+        jobs.push({
+          ...rawLead,
+          score: calculateScore(rawLead.title, rawLead.description),
+          pitch: generatePitch(rawLead),
+          extractedBudget: extractBudget(cleanDesc)
+        });
+      });
+      return jobs;
+    } catch (e) {
+      console.warn("Indeed scraping threw an error:", e);
+      return [];
+    }
+  };
+
+  const fetchFrustration = async (): Promise<Lead[]> => {
+    try {
+      const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent('https://news.google.com/rss/search?q=site:twitter.com+"hate+spreadsheets"+OR+"drowning+in+data"+OR+"Zapier+is+broken"+OR+"manual+entry"&hl=en-US&gl=US&ceid=US:en')}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const leads: Lead[] = [];
+      data?.items?.forEach((item: any) => {
+        const rawLead = {
+          platform: 'Frustration (Social)',
+          title: item.title,
+          description: item.content || item.description || '',
+          link: item.link,
+          published: item.pubDate
+        };
+        leads.push({
+          ...rawLead,
+          score: calculateScore(rawLead.title, rawLead.description) + 20, // High emotion bonus
+          pitch: generatePitch(rawLead)
+        });
+      });
+      return leads;
+    } catch { return []; }
+  };
+
+  const fetchHackerNews = async (): Promise<Lead[]> => {
+    try {
+      const res = await fetch("https://hn.algolia.com/api/v1/search_by_date?query=hiring+operations+OR+admin+OR+data&tags=comment");
+      if (!res.ok) return [];
+      const data = await res.json();
+      const leads: Lead[] = [];
+      data?.hits?.forEach((item: any) => {
+        const cleanDesc = item.story_text || item.comment_text || '';
+        const rawLead = {
+          platform: 'Startup (HackerNews)',
+          title: `HackerNews Hiring Thread: ${item.author}`,
+          description: cleanDesc.replace(/<[^>]*>?/gm, ''),
+          link: `https://news.ycombinator.com/item?id=${item.objectID}`,
+          published: item.created_at
+        };
+        leads.push({
+          ...rawLead,
+          score: calculateScore(rawLead.title, rawLead.description) + 15,
+          pitch: generatePitch(rawLead),
+          extractedBudget: extractBudget(cleanDesc)
+        });
+      });
+      return leads;
+    } catch { return []; }
+  };
+
+  const fetchLocalBusiness = async (): Promise<Lead[]> => {
+    try {
+      // Free Tier Hack: We use Google News RSS to find recent indexed posts from local directories
+      // or "law firm", "plumber", "roofing" in a specific area. 
+      // For a true Maps integration, you'd insert a custom Google Places API route here.
+      const query = "law firm OR roofing OR accounting OR wealth management";
+      const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(`https://news.google.com/rss/search?q=${query}+"hiring"+OR+"operations"&hl=en-US&gl=US&ceid=US:en`)}`);
+
+      if (!res.ok) return [];
+      const data = await res.json();
+      const leads: Lead[] = [];
+      data?.items?.forEach((item: any) => {
+        const rawLead = {
+          platform: 'Local Business',
+          title: item.title,
+          description: item.content || item.description || '',
+          link: item.link,
+          published: item.pubDate
+        };
+        leads.push({
+          ...rawLead,
+          score: calculateScore(rawLead.title, rawLead.description) + 10,
+          pitch: generatePitch(rawLead)
+        });
+      });
+      return leads;
+    } catch { return []; }
+  };
 
   const fetchLeads = async () => {
     setLoading(true);
     try {
-      // Client-side execution using rss2json proxy to bypass Reddit CORS and Vercel IP blocks
-      const redditPromises = REDDIT_SOURCES.map(async (subreddit) => {
-        try {
-          const feedUrl = encodeURIComponent(`https://www.reddit.com/r/${subreddit}/new.rss`);
-          const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`;
-          const res = await fetch(apiUrl);
-          if (!res.ok) return [];
-          const data = await res.json();
+      let allLeads: Lead[] = [];
+      const fetchers = [];
 
-          const jobs: Lead[] = [];
-          data?.items?.forEach((item: any) => {
-            const titleLower = item.title.toLowerCase();
-            const needsHelp = titleLower.includes('[hiring]') || titleLower.includes('[task]') || titleLower.includes('need help') || titleLower.includes('looking for');
+      if (activePlatform === 'All' || activePlatform === 'Reddit') fetchers.push(fetchReddit());
+      if (activePlatform === 'All' || activePlatform === 'Upwork') fetchers.push(fetchUpwork());
+      if (activePlatform === 'All' || activePlatform === 'Craigslist') fetchers.push(fetchCraigslist());
+      if (activePlatform === 'All' || activePlatform === 'WWR') fetchers.push(fetchWWR());
+      if (activePlatform === 'All' || activePlatform === 'RemoteOK') fetchers.push(fetchRemoteOK());
+      if (activePlatform === 'All' || activePlatform === 'Indeed') fetchers.push(fetchIndeed());
+      if (activePlatform === 'All' || activePlatform === 'Frustration') fetchers.push(fetchFrustration());
+      if (activePlatform === 'All' || activePlatform === 'Startup') fetchers.push(fetchHackerNews());
+      if (activePlatform === 'All' || activePlatform === 'Local') fetchers.push(fetchLocalBusiness());
 
-            if (needsHelp && !titleLower.includes('[for hire]')) {
-              // Strip HTML formatting from description added by Reddit RSS
-              const cleanDesc = item.content.replace(/<[^>]*>?/gm, '');
-              const textForBudget = `${item.title} ${cleanDesc}`;
-
-              const rawLead = {
-                platform: `Reddit (r/${subreddit})`,
-                title: item.title,
-                description: cleanDesc,
-                link: item.link,
-                published: item.pubDate
-              };
-              jobs.push({
-                ...rawLead,
-                score: calculateScore(rawLead.title, rawLead.description),
-                pitch: generatePitch(rawLead),
-                extractedBudget: extractBudget(textForBudget)
-              });
-            }
-          });
-          return jobs;
-        } catch (e) {
-          console.error(`Failed ${subreddit}`);
-          return [];
-        }
-      });
-
-      const redditResults = await Promise.all(redditPromises);
-      let allLeads = redditResults.flat();
-      allLeads = allLeads.sort((a, b) => b.score - a.score).slice(0, 100);
-      setLeads(allLeads);
+      const results = await Promise.all(fetchers);
+      const rawLeads = results.flat().slice(0, 150);
+      setLeads(sortLeadsArray(rawLeads));
     } catch (error) {
       console.error('Failed to fetch', error);
     } finally {
@@ -62,79 +360,299 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    fetchLeads();
-  }, []);
-
-  const handleCopyPitch = (pitch: string, index: number) => {
+  const handleCopyPitch = (pitch: string, id: string) => {
     navigator.clipboard.writeText(pitch);
-    setCopiedIndex(index);
+    setCopiedIndex(id);
     setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  const saveToCRM = (lead: Lead) => {
+    const id = btoa(lead.link).substring(0, 15);
+    if (!savedLeads.find(l => l.id === id)) {
+      const newSavedLead: SavedLead = { ...lead, id, stage: 'Saved' };
+      setSavedLeads([...savedLeads, newSavedLead]);
+    }
+  };
+
+  const updateLeadStage = (id: string, newStage: PipelineStage) => {
+    setSavedLeads(savedLeads.map(l => l.id === id ? { ...l, stage: newStage } : l));
+  };
+
+  const generateMockAIDraft = (lead: SavedLead) => {
+    setSavedLeads(savedLeads.map(l => l.id === lead.id ? { ...l, pitch: '🤖 Thinking...' } : l));
+
+    setTimeout(() => {
+      let newPitch = `Hi, I noticed your post on ${lead.platform.split(' ')[0]} regarding "${lead.title}".\n\n`;
+      newPitch += `I specialize in solving exactly these kinds of problems swiftly. `;
+      if (lead.extractedBudget) newPitch += `I see your budget is roughly ${lead.extractedBudget}, which works perfectly. `;
+      newPitch += `\n\nWhen do you have 10 minutes to chat this week?`;
+
+      setSavedLeads(savedLeads.map(l => l.id === lead.id ? { ...l, pitch: newPitch } : l));
+    }, 1500);
+  };
+
+  const renderLeadCard = (lead: Lead | SavedLead, isCRM: boolean) => {
+    const id = isCRM ? (lead as SavedLead).id : lead.link;
+
+    return (
+      <div key={id} className="lead-card">
+        <div className="card-header">
+          <div>
+            <span className={`score-badge ${lead.score >= 80 ? 'urgent' : ''}`}>
+              Score: {lead.score}/100
+            </span>
+            {lead.extractedBudget && (
+              <span className="platform-badge" style={{ marginLeft: '12px', background: 'rgba(57, 255, 20, 0.15)', color: '#39ff14', border: '1px solid rgba(57, 255, 20, 0.4)' }}>
+                💰 {lead.extractedBudget}
+              </span>
+            )}
+          </div>
+          <span className="platform-badge">{lead.platform}</span>
+        </div>
+
+        <h2 className="lead-title">{lead.title}</h2>
+        <p className="lead-desc">{lead.description.length > 150 ? lead.description.substring(0, 150) + '...' : lead.description}</p>
+
+        {!isCRM && (
+          <div className="action-bar">
+            <a href={lead.link} target="_blank" rel="noopener noreferrer" className="btn btn-outline">View Post</a>
+            <button onClick={() => saveToCRM(lead)} className="btn btn-primary">Save to CRM</button>
+          </div>
+        )}
+
+        {isCRM && (
+          <div className="crm-actions">
+            <div className="pitch-section" style={{ marginTop: '15px' }}>
+              <div className="pitch-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <strong style={{ fontSize: '0.85rem', color: '#8b949e' }}>Drafted Pitch</strong>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => generateMockAIDraft(lead as SavedLead)} className="btn btn-outline" style={{ padding: '4px 8px', fontSize: '0.8rem' }}>
+                    ✨ AI Draft
+                  </button>
+                  <button onClick={() => handleCopyPitch(lead.pitch, id)} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: '0.8rem' }}>
+                    {copiedIndex === id ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+              <div className="pitch-box" style={{ background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '6px', fontSize: '0.9rem', color: '#c9d1d9', minHeight: '60px', whiteSpace: 'pre-wrap' }}>
+                {lead.pitch}
+              </div>
+            </div>
+
+            {/* ROI Calculator Engine */}
+            {lead.extractedBudget && lead.extractedBudget.includes('yr') && (
+              <div className="roi-calculator" style={{
+                marginTop: '15px',
+                background: 'rgba(57, 255, 20, 0.05)',
+                border: '1px solid rgba(57, 255, 20, 0.2)',
+                padding: '10px',
+                borderRadius: '6px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#c9d1d9', marginBottom: '4px' }}>
+                  <span>Cost to Hire:</span>
+                  <strong>{lead.extractedBudget.split(' ')[0]}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#c9d1d9', marginBottom: '8px', borderBottom: '1px solid #30363d', paddingBottom: '8px' }}>
+                  <span>Your BOS Fee (Est):</span>
+                  <strong>$$10k</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#39ff14', fontWeight: 'bold' }}>
+                  <span>Client Savings (ROI):</span>
+                  <span>{(() => {
+                    const match = lead.extractedBudget.match(/\$\$([0-9]+)k/);
+                    return match ? `$$${parseInt(match[1]) - 10}k/yr 🚀` : 'Massive';
+                  })()}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="stage-controls" style={{ marginTop: '15px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              {(lead as SavedLead).stage !== 'Saved' && <button className="btn btn-outline stage-btn" onClick={() => updateLeadStage(id, 'Saved')}>⬅️</button>}
+              {(lead as SavedLead).stage === 'Saved' && <button className="btn btn-outline stage-btn" onClick={() => updateLeadStage(id, 'Contacted')}>Contacted ➡️</button>}
+              {(lead as SavedLead).stage === 'Contacted' && <button className="btn btn-outline stage-btn" onClick={() => updateLeadStage(id, 'Replied')}>Replied ➡️</button>}
+              {(lead as SavedLead).stage === 'Replied' && <button className="btn btn-outline stage-btn" onClick={() => updateLeadStage(id, 'Closed')}>Closed 🤑</button>}
+            </div>
+
+            {/* Antigravity Feasibility Analyzer */}
+            <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #30363d' }}>
+              <button
+                onClick={() => handleAnalyzeLead(lead)}
+                className="btn btn-primary"
+                style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px', background: 'var(--accent-color)' }}
+                disabled={isAnalyzing === id}
+              >
+                {isAnalyzing === id ? '🤖 Initializing Antigravity...' : '⚡ Run Antigravity Analysis'}
+              </button>
+
+              {analyzedLeads[id] && (
+                <div style={{ marginTop: '15px', padding: '15px', background: '#0d1117', border: '1px solid #30363d', borderRadius: '6px', fontFamily: 'monospace' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span style={{ color: '#8b949e' }}>// SYSTEM FEASIBILITY:</span>
+                    <strong style={{ color: analyzedLeads[id].percentage > 85 ? '#39ff14' : '#f0883e' }}>{analyzedLeads[id].percentage}% Automatable</strong>
+                  </div>
+
+                  <div style={{ marginBottom: '10px' }}>
+                    <span style={{ color: '#8b949e', display: 'block', marginBottom: '4px' }}>// CAPABILITY RATING:</span>
+                    <span style={{ color: '#c9d1d9' }}>{analyzedLeads[id].capability}</span>
+                  </div>
+
+                  <div style={{ marginBottom: '10px' }}>
+                    <span style={{ color: '#8b949e', display: 'block', marginBottom: '4px' }}>// EXECUTION PLAN:</span>
+                    <ul style={{ paddingLeft: '20px', margin: 0, color: '#c9d1d9' }}>
+                      {analyzedLeads[id].plan.map((step, idx) => (
+                        <li key={idx} style={{ marginBottom: '4px' }}>{step}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div>
+                    <span style={{ color: '#8b949e', display: 'block', marginBottom: '4px' }}>// EXTRA SPECS:</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {analyzedLeads[id].specs.map((spec, idx) => (
+                        <span key={idx} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8rem', color: '#58a6ff' }}>{spec}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const handleAnalyzeLead = (lead: Lead | SavedLead) => {
+    const id = (lead as SavedLead).id || lead.link;
+    setIsAnalyzing(id);
+
+    // Simulate complex LLM reasoning time
+    setTimeout(() => {
+      const analysis = generateAntigravityAnalysis(lead.title, lead.description);
+      setAnalyzedLeads(prev => ({ ...prev, [id]: analysis }));
+      setIsAnalyzing(null);
+    }, 1200);
+  };
+
+  const renderKanbanBoard = () => {
+    const columns: PipelineStage[] = ['Saved', 'Contacted', 'Replied', 'Closed'];
+    return (
+      <div className="kanban-board">
+        {columns.map(col => {
+          const colLeads = savedLeads.filter(l => l.stage === col);
+          return (
+            <div key={col} className="kanban-column">
+              <div className="kanban-header">
+                <h3>{col}</h3>
+                <span className="kanban-count">{colLeads.length}</span>
+              </div>
+              <div className="kanban-cards">
+                {colLeads.map(l => renderLeadCard(l, true))}
+                {colLeads.length === 0 && <div className="empty-column">No leads</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
     <div className="container">
       <header className="header">
         <div>
-          <h1 className="title">Urgent Lead Sniper</h1>
-          <p className="subtitle">Real-time Desperation & Cash Tracker 📡</p>
+          <h1 className="title">Lead Sniper PRO</h1>
+          <p className="subtitle">Radar & pipeline synchronization 📡</p>
         </div>
-        <button onClick={fetchLeads} className="primary-btn" disabled={loading}>
-          {loading ? 'Siphoning...' : 'Refresh Radars'}
-        </button>
+
+        <div className="tabs">
+          <button
+            className={`tab-btn ${activeTab === 'radar' ? 'active' : ''}`}
+            onClick={() => setActiveTab('radar')}
+          >
+            Radar Feed
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'crm' ? 'active' : ''}`}
+            onClick={() => setActiveTab('crm')}
+          >
+            CRM Pipeline ({savedLeads.length})
+          </button>
+        </div>
       </header>
 
-      {loading ? (
-        <div className="empty-state">
-          <div className="pulse-ring"></div>
-          <p>Siphoning client-side indices (Bypassing blocks)...</p>
-        </div>
-      ) : leads.length === 0 ? (
-        <div className="empty-state">
-          <p>No high-intent leads found right now. Check back soon.</p>
-        </div>
-      ) : (
-        <div className="scrolling-grid">
-          {leads.map((lead: Lead, index: number) => (
-            <div key={index} className="lead-card">
-              <div className="card-header">
-                <div>
-                  <span className={`score-badge ${lead.score >= 80 ? 'urgent' : ''}`}>
-                    Score: {lead.score}/100
-                  </span>
-                  {lead.extractedBudget && (
-                    <span className="platform-badge" style={{ marginLeft: '12px', background: 'rgba(57, 255, 20, 0.15)', color: '#39ff14', border: '1px solid rgba(57, 255, 20, 0.4)' }}>
-                      💰 {lead.extractedBudget}
-                    </span>
-                  )}
-                </div>
-                <span className="platform-badge">{lead.platform}</span>
-              </div>
+      {activeTab === 'radar' && (
+        <div className="radar-view">
+          <div className="actions-header" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+              <h3>Live Feed</h3>
+              <select
+                className="platform-filter"
+                value={activePlatform}
+                onChange={(e) => setActivePlatform(e.target.value as PlatformFilter)}
+                style={{ background: 'rgba(255,255,255,0.05)', color: '#c9d1d9', padding: '6px 12px', borderRadius: '6px', border: '1px solid #30363d' }}
+              >
+                <option value="All">All Radars</option>
+                <option value="Reddit">Reddit</option>
+                <option value="Upwork">Upwork</option>
+                <option value="Craigslist">Craigslist</option>
+                <option value="WWR">We Work Remotely</option>
+                <option value="RemoteOK">Remote OK</option>
+                <option value="Indeed">Indeed</option>
+                <option value="Frustration">Frustration Search</option>
+                <option value="Startup">Startup Desk (HN)</option>
+                <option value="Local">Local Business</option>
+              </select>
 
-              <h2 className="lead-title">{lead.title}</h2>
-              <p className="lead-desc">{lead.description.length > 250 ? lead.description.substring(0, 250) + '...' : lead.description}</p>
+              {(activePlatform === 'All' || activePlatform === 'Craigslist') && (
+                <select
+                  className="radius-filter"
+                  value={searchHub}
+                  onChange={(e) => setSearchHub(e.target.value)}
+                  style={{ background: 'rgba(255,255,255,0.05)', color: '#c9d1d9', padding: '6px 12px', borderRadius: '6px', border: '1px solid #30363d' }}
+                >
+                  {Object.entries(CRAIGSLIST_STATES).map(([key, stateObj]) => (
+                    <option key={key} value={key}>{stateObj.label} ({stateObj.subdomains.length} markets)</option>
+                  ))}
+                </select>
+              )}
 
-              <div className="pitch-section">
-                <div className="pitch-header">
-                  <strong>Generated Pitch 🚀</strong>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <a href={lead.link} target="_blank" rel="noopener noreferrer" className="secondary-btn">
-                      View Post
-                    </a>
-                    <button
-                      onClick={() => handleCopyPitch(lead.pitch, index)}
-                      className="primary-btn"
-                    >
-                      {copiedIndex === index ? 'Copied!' : 'Copy Pitch'}
-                    </button>
-                  </div>
-                </div>
-                <div className="pitch-box">
-                  {lead.pitch}
-                </div>
-              </div>
+              <select
+                className="sort-filter"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                style={{ background: 'rgba(255,255,255,0.05)', color: '#c9d1d9', padding: '6px 12px', borderRadius: '6px', border: '1px solid #30363d' }}
+              >
+                <option value="Score (High-Low)">🏆 Score (High-Low)</option>
+                <option value="Pay Rate (High-Low)">💰 Pay Rate (High-Low)</option>
+                <option value="Date (Newest)">⏳ Date (Newest)</option>
+              </select>
             </div>
-          ))}
+            <button onClick={fetchLeads} className="btn btn-primary" disabled={loading}>
+              {loading ? 'Scanning...' : 'Refresh Radars'}
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="empty-state">
+              <div className="pulse-ring"></div>
+              <p>Siphoning leads (Bypassing blocks)...</p>
+            </div>
+          ) : leads.length === 0 ? (
+            <div className="empty-state">
+              <p>No high-intent leads found right now. Check back soon.</p>
+            </div>
+          ) : (
+            <div className="scrolling-grid">
+              {leads.map(lead => renderLeadCard(lead, false))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'crm' && (
+        <div className="crm-view">
+          {renderKanbanBoard()}
         </div>
       )}
     </div>

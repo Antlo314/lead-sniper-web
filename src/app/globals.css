@@ -26,6 +26,7 @@ body {
   font-size: 3rem;
   background: linear-gradient(90deg, #00ffcc, #00b3ff);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 10px;
 }
@@ -80,9 +81,17 @@ body {
 }
 
 @keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(255, 75, 75, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(255, 75, 75, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 75, 75, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 75, 75, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 75, 75, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 75, 75, 0);
+  }
 }
 
 .platform-badge {
@@ -173,4 +182,112 @@ body {
   color: #00ffcc;
   font-size: 1.2rem;
   font-weight: bold;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.tab-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #8b949e;
+  padding: 10px 24px;
+  border-radius: 30px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #c9d1d9;
+}
+
+.tab-btn.active {
+  background: rgba(0, 255, 204, 0.15);
+  border-color: #00ffcc;
+  color: #00ffcc;
+}
+
+/* Kanban Board Layout */
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .kanban-board {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .kanban-board {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kanban-column {
+  background: rgba(13, 17, 23, 0.6);
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 500px;
+}
+
+.kanban-header {
+  padding: 16px;
+  border-bottom: 1px solid #30363d;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.02);
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+
+.kanban-header h3 {
+  font-size: 1.1rem;
+  color: #c9d1d9;
+  margin: 0;
+}
+
+.kanban-count {
+  background: #21262d;
+  color: #8b949e;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+.kanban-cards {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.empty-column {
+  text-align: center;
+  color: #484f58;
+  padding: 20px;
+  font-size: 0.9rem;
+  border: 1px dashed #30363d;
+  border-radius: 8px;
+}
+
+.stage-btn {
+  padding: 6px 12px;
+  font-size: 0.85rem;
 }

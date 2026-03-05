@@ -1,73 +1,19 @@
 import { NextResponse } from 'next/server';
 import Parser from 'rss-parser';
+import {
+    calculateScore,
+    extractBudget,
+    generatePitch,
+    Lead,
+    REDDIT_SOURCES,
+    CRAIGSLIST_STATES,
+    HACKERNEWS_API_BASE,
+    WWR_RSS_URL,
+    REMOTE_OK_RSS_URL,
+    TWITTER_FRUSTRATION_RSS
+} from '@/lib/engine'; // Re-use the engine's definitions
 
 export const dynamic = 'force-dynamic';
-
-const URGENCY_WORDS = ['urgent', 'asap', 'immediately', 'yesterday', 'emergency', 'fast', 'quick', 'down right now', 'crashed'];
-const BUDGET_WORDS = ['willing to pay', 'budget', '$$', 'cash', 'paid', 'high ticket', 'lucrative', 'compensation'];
-const TIME_WASTERS = ['equity', 'unpaid', 'rev share', 'revenue share', 'co-founder', 'cofounder', 'startup opportunity', 'no budget', 'deferred pay'];
-const BOS_KEYWORDS = ['mess', 'manual data entry', 'excel', 'spreadsheets', 'unorganized', 'too many emails', 'administrative', 'bottleneck'];
-
-const REDDIT_SOURCES = ['forhire', 'smallbusiness', 'Entrepreneur', 'sweatystartup', 'slavelabour'];
-
-interface Lead {
-    platform: string;
-    title: string;
-    description: string;
-    link: string;
-    published: string;
-    score?: number;
-    pitch?: string;
-    extractedBudget?: string;
-}
-
-function extractBudget(text: string): string | undefined {
-    // Look for patterns like $500, $1,000, $50k, 500 USD
-    const dollarRegex = /\$([0-9,]+(?:k|K)?)/g;
-    const match = dollarRegex.exec(text);
-    if (match) {
-        return `$$${match[1]}`;
-    }
-
-    const usdRegex = /([0-9,]+(?:k|K)?)\s*USD/gi;
-    const usdMatch = usdRegex.exec(text);
-    if (usdMatch) {
-        return `$$${usdMatch[1]}`;
-    }
-    return undefined;
-}
-
-function calculateScore(title: string, description: string): number {
-    let score = 50;
-    const text = `${title} ${description}`.toLowerCase();
-
-    URGENCY_WORDS.forEach(word => { if (text.includes(word)) score += 15; });
-    BUDGET_WORDS.forEach(word => { if (text.includes(word)) score += 10; });
-    BOS_KEYWORDS.forEach(word => { if (text.includes(word)) score += 20; });
-    TIME_WASTERS.forEach(word => { if (text.includes(word)) score -= 50; });
-
-    // Has explicit budget? Huge bonus.
-    if (extractBudget(text)) score += 20;
-
-    return Math.max(0, Math.min(100, score));
-}
-
-function generatePitch(lead: Lead): string {
-    const title = lead.title.toLowerCase();
-    const desc = lead.description.toLowerCase();
-
-    if (title.includes('paralegal') || title.includes('business') || title.includes('admin') || BOS_KEYWORDS.some(w => desc.includes(w))) {
-        return "Hey! I saw your post looking for help with admin/paralegal work. Instead of just manual labor, I build custom Business Operating Systems (BOS) that automate document prep, client intake, and eliminate messy spreadsheets entirely. I can set this up for you in a few days so your firm runs on autopilot. Open to a quick 5-min chat?";
-    }
-
-    if (URGENCY_WORDS.some(w => desc.includes(w)) && (title.includes('website') || title.includes('python') || title.includes('fix') || title.includes('wordpress'))) {
-        return "Hey! I saw this is extremely urgent. I'm a developer and I can jump on this right now and get it fixed/built for you today. Let me know if you want me to start immediately.";
-    }
-
-    return "Hi there, I came across your post and I'm highly confident I can execute this perfectly and quickly. I build high-end web apps, automations, and custom software. When are you looking to get this started? I have capacity this week.";
-}
-
-
 
 async function fetchReddit(subreddit: string): Promise<Lead[]> {
     const jobs: Lead[] = [];
@@ -95,38 +41,231 @@ async function fetchReddit(subreddit: string): Promise<Lead[]> {
                 jobs.push({
                     platform: `Reddit (r/${subreddit})`,
                     title: p.title,
-                    description: p.selftext,
+                    description: p.selftext || '',
                     link: `https://reddit.com${p.permalink}`,
-                    published: new Date(p.created_utc * 1000).toISOString()
+                    published: new Date(p.created_utc * 1000).toISOString(),
+                    score: 0,
+                    pitch: ''
                 });
             }
         });
-    } catch (e) { console.error(`Reddit fetch failed for ${subreddit}`); }
+    } catch (e) {
+        console.error(`Reddit fetch failed for ${subreddit}`);
+    }
+    return jobs;
+}
+
+async function fetchCraigslist(stateCode: string): Promise<Lead[]> {
+    const jobs: Lead[] = [];
+    const stateData = CRAIGSLIST_STATES[stateCode];
+    if (!stateData) return jobs;
+
+    const parser = new Parser();
+    // Fetch a couple subdomains per state to keep it fast
+    const subdomainsToFetch = stateData.subdomains.slice(0, 2);
+
+    for (const subdomain of subdomainsToFetch) {
+        try {
+            // Craigslist admin/office jobs
+            const feedUrl = `https://${subdomain}.craigslist.org/search/ofc?format=rss`;
+            const feed = await parser.parseURL(feedUrl);
+
+            feed.items.forEach(item => {
+                jobs.push({
+                    platform: `Craigslist (${subdomain})`,
+                    title: item.title || '',
+                    description: item.contentSnippet || item.content || '',
+                    link: item.link || '',
+                    published: item.isoDate || new Date().toISOString(),
+                    score: 0,
+                    pitch: ''
+                });
+            });
+        } catch (e) {
+            console.error(`Craigslist fetch failed for ${subdomain}`);
+        }
+    }
+    return jobs;
+}
+
+async function fetchHackerNews(): Promise<Lead[]> {
+    const jobs: Lead[] = [];
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+        const res = await fetch(HACKERNEWS_API_BASE, {
+            signal: controller.signal,
+            next: { revalidate: 300 }
+        });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) return jobs;
+
+        const data = await res.json();
+        data?.hits?.forEach((hit: any) => {
+            jobs.push({
+                platform: 'HackerNews (Startup Drain)',
+                title: 'Startup Hiring (HN Who is Hiring)',
+                description: hit.comment_text || '',
+                link: `https://news.ycombinator.com/item?id=${hit.objectID}`,
+                published: hit.created_at || new Date().toISOString(),
+                score: 0,
+                pitch: ''
+            });
+        });
+    } catch (e) {
+        console.error('HackerNews fetch failed');
+    }
+    return jobs;
+}
+
+async function fetchWWR(): Promise<Lead[]> {
+    const jobs: Lead[] = [];
+    try {
+        const parser = new Parser();
+        const feed = await parser.parseURL(WWR_RSS_URL);
+
+        feed.items.forEach(item => {
+            jobs.push({
+                platform: 'We Work Remotely',
+                title: item.title || '',
+                description: item.contentSnippet || item.content || '',
+                link: item.link || '',
+                published: item.isoDate || new Date().toISOString(),
+                score: 0,
+                pitch: ''
+            });
+        });
+    } catch (e) {
+        console.error('WWR fetch failed');
+    }
+    return jobs;
+}
+
+async function fetchRemoteOK(): Promise<Lead[]> {
+    const jobs: Lead[] = [];
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+        const res = await fetch(REMOTE_OK_RSS_URL, {
+            signal: controller.signal,
+            next: { revalidate: 300 }
+        });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) return jobs;
+
+        const data = await res.json();
+        // Skip the first item which is usually metadata on remoteok
+        data.slice(1).forEach((job: any) => {
+            jobs.push({
+                platform: 'Remote OK',
+                title: job.position || '',
+                description: job.description || '',
+                link: job.url || '',
+                published: job.date || new Date().toISOString(),
+                score: 0,
+                pitch: ''
+            });
+        });
+    } catch (e) {
+        console.error('RemoteOK fetch failed');
+    }
+    return jobs;
+}
+
+async function fetchTwitterFrustration(): Promise<Lead[]> {
+    const jobs: Lead[] = [];
+    try {
+        const parser = new Parser();
+        const feed = await parser.parseURL(TWITTER_FRUSTRATION_RSS);
+
+        feed.items.forEach(item => {
+            jobs.push({
+                platform: 'Twitter (Frustration Engine)',
+                title: item.title || '',
+                description: item.contentSnippet || item.content || '',
+                link: item.link || '',
+                published: item.isoDate || new Date().toISOString(),
+                score: 0,
+                pitch: ''
+            });
+        });
+    } catch (e) {
+        console.error('Twitter fetch failed');
+    }
     return jobs;
 }
 
 export async function GET() {
     try {
-        const redditPromises = REDDIT_SOURCES.map(r => fetchReddit(r));
-        const redditResults = await Promise.all(redditPromises);
+        // Fetch from all sources concurrently
+        const [
+            redditResults,
+            craigslistGA,
+            craigslistNY,
+            craigslistCA,
+            craigslistTX,
+            hnResults,
+            wwrResults,
+            remoteOkResults,
+            twitterResults
+        ] = await Promise.all([
+            // Limit Reddit to 2 subreddits to save time/bandwidth
+            Promise.all(REDDIT_SOURCES.slice(0, 2).map(r => fetchReddit(r))).then(results => results.flat()),
+            fetchCraigslist('GA'),
+            fetchCraigslist('NY'),
+            fetchCraigslist('CA'),
+            fetchCraigslist('TX'),
+            fetchHackerNews(),
+            fetchWWR(),
+            fetchRemoteOK(),
+            fetchTwitterFrustration()
+        ]);
 
         let allLeads = [
-            ...redditResults.flat()
+            ...redditResults,
+            ...craigslistGA,
+            ...craigslistNY,
+            ...craigslistCA,
+            ...craigslistTX,
+            ...hnResults,
+            ...wwrResults,
+            ...remoteOkResults,
+            ...twitterResults
         ];
 
+        // Process, score, and pitch
         allLeads = allLeads.map(lead => {
             const textForBudget = `${lead.title} ${lead.description}`;
+            const calculatedScore = calculateScore(lead.title, lead.description);
+            const budget = extractBudget(textForBudget);
+
+            // Generate pitch needs a lead object without score/pitch according to engine.ts interface
+            const leadForPitch = {
+                platform: lead.platform,
+                title: lead.title,
+                description: lead.description,
+                link: lead.link,
+                published: lead.published,
+                extractedBudget: budget
+            };
+
             return {
                 ...lead,
-                score: calculateScore(lead.title, lead.description),
-                pitch: generatePitch(lead),
-                extractedBudget: extractBudget(textForBudget)
+                score: calculatedScore,
+                pitch: generatePitch(leadForPitch),
+                extractedBudget: budget
             };
         }).sort((a, b) => (b.score || 0) - (a.score || 0));
 
-        // Cap at top 100 leads to keep dashboard fast
+        // Cap at top 100 leads
         return NextResponse.json(allLeads.slice(0, 100));
     } catch (error) {
+        console.error("Aggregation Failed:", error);
         return NextResponse.json({ error: "Failed to fetch aggregated leads" }, { status: 500 });
     }
 }
+
