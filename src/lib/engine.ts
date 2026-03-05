@@ -262,6 +262,75 @@ export function generateAntigravityAnalysis(title: string, description: string):
     };
 }
 
+export function timeAgo(dateString: string): string {
+    const pubDate = new Date(dateString);
+    if (isNaN(pubDate.getTime())) return "Recently";
+
+    const seconds = Math.floor((new Date().getTime() - pubDate.getTime()) / 1000);
+
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + " years ago";
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + " months ago";
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + " days ago";
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + " hours ago";
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + " minutes ago";
+    return Math.floor(seconds) + " seconds ago";
+}
+
+export interface DeepScanResult {
+    likelihood: number;
+    strengths: string[];
+    weaknesses: string[];
+    tools: string[];
+}
+
+export function generateDeepScan(lead: Lead): DeepScanResult {
+    const text = `${lead.title} ${lead.description}`.toLowerCase();
+    let likelihood = 50;
+    const strengths: string[] = [];
+    const weaknesses: string[] = [];
+    const tools: string[] = [];
+
+    // Antigravity Strengths
+    if (ANTIGRAVITY_TECH.some(w => text.includes(w))) {
+        likelihood += 35;
+        strengths.push("Perfect match for modern Antigravity Stack (Next.js/Supabase/Python).");
+        tools.push("Vercel", "Supabase", "Next.js");
+    } else if (text.includes('automation') || text.includes('data entry') || text.includes('spreadsheets')) {
+        likelihood += 25;
+        strengths.push("High potential for Business Operating System (BOS) automation.");
+        tools.push("Make.com", "OpenAI", "Node.js (Extractors)");
+    } else {
+        strengths.push("General software engineering expertise can easily adapt to this role.");
+        tools.push("Standard Web Connectors", "Custom Scripts");
+    }
+
+    // Weaknesses / Risks
+    if (lead.extractedBudget && lead.extractedBudget.includes('/hr')) {
+        likelihood -= 15;
+        weaknesses.push("Client requested hourly pay. Will require a strong pivot pitch for a fixed-rate BOS build.");
+    }
+
+    if (text.includes('urgent') || text.includes('asap')) {
+        strengths.push("Client is in pain (urgent); highly susceptible to fast BOS deployment pitches.");
+    } else {
+        weaknesses.push("No explicit urgency detected; sales cycle might be slightly longer.");
+    }
+
+    if (text.includes('api') || text.includes('webhook')) {
+        strengths.push("Client is technically aware; integration will be straightforward.");
+    }
+
+    // Final calculations bounds
+    likelihood = Math.max(10, Math.min(98, likelihood + Math.floor(Math.random() * 10) - 5)); // Add slight variance for realism
+
+    return { likelihood, strengths, weaknesses, tools };
+}
+
 export function generateTailoredResume(lead: Lead): string {
     const text = `${lead.title} ${lead.description}`.toLowerCase();
 

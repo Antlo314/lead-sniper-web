@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Lead, REDDIT_SOURCES, UPWORK_RSS_URL, CRAIGSLIST_STATES, WWR_RSS_URL, REMOTE_OK_RSS_URL, calculateScore, generatePitch, extractBudget, generateAntigravityAnalysis, FeasibilityAnalysis, generateTailoredResume } from '@/lib/engine';
+import Image from 'next/image';
+import { Lead, REDDIT_SOURCES, UPWORK_RSS_URL, CRAIGSLIST_STATES, WWR_RSS_URL, REMOTE_OK_RSS_URL, calculateScore, generatePitch, extractBudget, generateAntigravityAnalysis, FeasibilityAnalysis, generateTailoredResume, timeAgo, generateDeepScan, DeepScanResult } from '@/lib/engine';
 
 export type PipelineStage = 'Saved' | 'Contacted' | 'Replied' | 'Closed';
 export type PlatformFilter = 'All' | 'Reddit' | 'Upwork' | 'Craigslist' | 'WWR' | 'RemoteOK' | 'Indeed' | 'Frustration' | 'Startup' | 'Local';
@@ -21,6 +22,8 @@ export default function Home() {
   const [sortOrder, setSortOrder] = useState<string>('Score (High-Low)');
   const [analyzedLeads, setAnalyzedLeads] = useState<Record<string, FeasibilityAnalysis>>({});
   const [isAnalyzing, setIsAnalyzing] = useState<string | null>(null);
+  const [deepScanResults, setDeepScanResults] = useState<Record<string, DeepScanResult>>({});
+  const [isDeepScanning, setIsDeepScanning] = useState<string | null>(null);
   const [showResumeFor, setShowResumeFor] = useState<SavedLead | null>(null);
 
   useEffect(() => {
@@ -398,12 +401,15 @@ export default function Home() {
     return (
       <div key={id} className="lead-card">
         <div className="card-header">
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span className={`score-badge ${lead.score >= 80 ? 'urgent' : ''}`}>
               Score: {lead.score}/100
             </span>
+            <span style={{ fontSize: '0.8rem', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              🕒 {timeAgo(lead.published)}
+            </span>
             {lead.extractedBudget && (
-              <span className="platform-badge" style={{ marginLeft: '12px', background: 'rgba(57, 255, 20, 0.15)', color: '#39ff14', border: '1px solid rgba(57, 255, 20, 0.4)' }}>
+              <span className="platform-badge" style={{ background: 'rgba(57, 255, 20, 0.15)', color: '#39ff14', border: '1px solid rgba(57, 255, 20, 0.4)' }}>
                 💰 {lead.extractedBudget}
               </span>
             )}
@@ -477,6 +483,57 @@ export default function Home() {
               {(lead as SavedLead).stage === 'Replied' && <button className="btn btn-outline stage-btn" onClick={() => updateLeadStage(id, 'Closed')}>Closed 🤑</button>}
             </div>
 
+            {/* Deep Scan UI */}
+            <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #30363d' }}>
+              <button
+                onClick={() => handleDeepScan(lead)}
+                className="btn btn-outline"
+                style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px', borderColor: '#00ffcc', color: '#00ffcc', marginBottom: '10px' }}
+                disabled={isDeepScanning === id}
+              >
+                {isDeepScanning === id ? '🔍 Scanning Vectors...' : '🔍 Perform Deep Scan'}
+              </button>
+
+              {deepScanResults[id] && (
+                <div style={{ padding: '15px', background: 'rgba(0, 255, 204, 0.05)', border: '1px solid rgba(0, 255, 204, 0.2)', borderRadius: '6px', fontSize: '0.85rem' }}>
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <strong style={{ color: '#00ffcc' }}>Hiring Likelihood</strong>
+                      <strong style={{ color: '#00ffcc' }}>{deepScanResults[id].likelihood}%</strong>
+                    </div>
+                    <div style={{ width: '100%', height: '8px', background: '#21262d', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div style={{ width: `${deepScanResults[id].likelihood}%`, height: '100%', background: `linear-gradient(90deg, #00b3ff, #00ffcc)`, transition: 'width 1s ease-in-out' }}></div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                    <div>
+                      <span style={{ color: '#39ff14', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Strengths (+)</span>
+                      <ul style={{ paddingLeft: '16px', margin: 0, color: '#c9d1d9' }}>
+                        {deepScanResults[id].strengths.map((str, i) => <li key={i}>{str}</li>)}
+                      </ul>
+                    </div>
+                    <div>
+                      <span style={{ color: '#ff4b4b', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Weaknesses (-)</span>
+                      <ul style={{ paddingLeft: '16px', margin: 0, color: '#c9d1d9' }}>
+                        {deepScanResults[id].weaknesses.map((wk, i) => <li key={i}>{wk}</li>)}
+                        {deepScanResults[id].weaknesses.length === 0 && <li>None detected.</li>}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ color: '#8b949e', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Recommended Architecture:</span>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {deepScanResults[id].tools.map((tool, i) => (
+                        <span key={i} style={{ padding: '2px 8px', background: '#21262d', borderRadius: '12px', color: '#c9d1d9' }}>{tool}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Antigravity Feasibility Analyzer */}
             <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #30363d' }}>
               <button
@@ -538,6 +595,18 @@ export default function Home() {
     }, 1200);
   };
 
+  const handleDeepScan = (lead: Lead | SavedLead) => {
+    const id = (lead as SavedLead).id || lead.link;
+    setIsDeepScanning(id);
+
+    // Simulate scanning delay
+    setTimeout(() => {
+      const scanOutput = generateDeepScan(lead);
+      setDeepScanResults(prev => ({ ...prev, [id]: scanOutput }));
+      setIsDeepScanning(null);
+    }, 1500);
+  };
+
   const renderKanbanBoard = () => {
     const columns: PipelineStage[] = ['Saved', 'Contacted', 'Replied', 'Closed'];
     return (
@@ -564,7 +633,15 @@ export default function Home() {
   return (
     <div className="container">
       <header className="header">
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '20px' }}>
+          <Image
+            src="/lead_sniper_logo.png"
+            alt="Lead Sniper Logo"
+            width={120}
+            height={120}
+            style={{ borderRadius: '20px', boxShadow: '0 0 20px rgba(0, 255, 204, 0.3)', marginBottom: '16px' }}
+            priority
+          />
           <h1 className="title">Lead Sniper PRO</h1>
           <p className="subtitle">Radar & pipeline synchronization 📡</p>
         </div>
@@ -658,6 +735,7 @@ export default function Home() {
         <div className="crm-view">
           {renderKanbanBoard()}
         </div>
+      )}
       {/* Resume Modal */}
       {showResumeFor && (
         <div style={{
