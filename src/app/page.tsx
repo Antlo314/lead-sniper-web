@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Lead, REDDIT_SOURCES, UPWORK_RSS_URL, CRAIGSLIST_STATES, WWR_RSS_URL, REMOTE_OK_RSS_URL, calculateScore, generatePitch, extractBudget, generateAntigravityAnalysis, FeasibilityAnalysis, generateTailoredResume, timeAgo, generateDeepScan, DeepScanResult } from '@/lib/engine';
 import { supabase } from '@/lib/supabase';
+import DashboardStats from '@/components/DashboardStats';
 
 export type PipelineStage = 'Saved' | 'Contacted' | 'Replied' | 'Closed';
 export type PlatformFilter = 'All' | 'Reddit' | 'Upwork' | 'Craigslist' | 'WWR' | 'RemoteOK' | 'Indeed' | 'Frustration' | 'Startup' | 'Local';
@@ -721,6 +722,8 @@ export default function Home() {
           <h1 className="title">Lead Sniper PRO</h1>
           <p className="subtitle">Radar & pipeline synchronization 📡</p>
         </div>
+
+        <DashboardStats savedLeads={savedLeads} />
 
         <div className="tabs">
           <button
