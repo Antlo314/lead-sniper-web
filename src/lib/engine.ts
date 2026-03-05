@@ -3,7 +3,8 @@ export const BUDGET_WORDS = ['willing to pay', 'budget', '$$', 'cash', 'paid', '
 export const TIME_WASTERS = ['equity', 'unpaid', 'rev share', 'revenue share', 'co-founder', 'cofounder', 'startup opportunity', 'no budget', 'deferred pay'];
 export const BOS_KEYWORDS = ['mess', 'manual data entry', 'excel', 'spreadsheets', 'unorganized', 'too many emails', 'administrative', 'bottleneck', 'data entry', 'virtual assistant', 'office manager', 'operations', 'logistics'];
 export const PHYSICAL_PRESENCE = ['receptionist', 'door', 'warehouse', 'valet', 'in-person', 'front desk', 'cleaning', 'driving', 'forklift', 'cashier', 'stocker', 'janitor', 'delivery', 'cook', 'server', 'bartender', 'guard'];
-
+export const OUT_OF_SCOPE_TECH = ['c++', 'java ', ' swift ', 'ios', 'android', 'kotlin', ' rust ', 'embedded', 'unity', 'unreal', '.net', 'c#', 'objective-c', 'game developer'];
+export const ANTIGRAVITY_TECH = ['next.js', 'react', 'python', 'supabase', 'vercel', 'automation', 'zapier', 'make.com', 'ai ', 'llm', 'openai', 'scraping', 'typescript', 'tailwind', 'api', 'chatbot', 'agent'];
 export const REDDIT_SOURCES = ['forhire', 'smallbusiness', 'Entrepreneur', 'sweatystartup', 'slavelabour'];
 
 // Upwork specifically uses RSS for custom searches. 
@@ -134,8 +135,11 @@ export function calculateScore(title: string, description: string): number {
     let score = 50;
     const text = `${title} ${description}`.toLowerCase();
 
-    // Instant disqualifier
+    // Instant disqualifiers
     if (PHYSICAL_PRESENCE.some(word => text.includes(word))) {
+        return 0; // Drop score to 0 immediately
+    }
+    if (OUT_OF_SCOPE_TECH.some(word => text.includes(word))) {
         return 0; // Drop score to 0 immediately
     }
 
@@ -143,6 +147,7 @@ export function calculateScore(title: string, description: string): number {
     BUDGET_WORDS.forEach(word => { if (text.includes(word)) score += 10; });
     BOS_KEYWORDS.forEach(word => { if (text.includes(word)) score += 20; });
     TIME_WASTERS.forEach(word => { if (text.includes(word)) score -= 50; });
+    ANTIGRAVITY_TECH.forEach(word => { if (text.includes(word)) score += 30; });
 
     if (extractBudget(text)) score += 20;
 
@@ -154,7 +159,12 @@ export function generatePitch(lead: Omit<Lead, 'score' | 'pitch'>): string {
     const desc = lead.description.toLowerCase();
     const budget = lead.extractedBudget || "";
 
-    // Multi-Tier 1: High Salary Replacement (The $10k BOS Pitch)
+    // Multi-Tier 1: Antigravity Custom AI & Auth Tier
+    if (ANTIGRAVITY_TECH.some(w => desc.includes(w) || title.includes(w))) {
+        return `Hey! I saw you are looking for help with ${lead.title}. Instead of a standard freelancer, I deploy fully autonomous AI agents and build full-stack web applications on modern architecture (Next.js/Supabase) to execute these processes perfectly. Let me know if you want to jump on a quick call to see my capabilities and how we can fully automate this.`;
+    }
+
+    // Multi-Tier 2: High Salary Replacement (The $10k BOS Pitch)
     if (budget.includes('yr') || title.includes('manager') || title.includes('coordinator')) {
         return `Hey! I saw you are looking to hire a full-time ${lead.title} to handle operations and data entry. With benefits and overhead, that role costs you way more than just the base salary.\n\nInstead of paying a person endlessly to do manual spreadsheet work, I build custom Business Operating Systems (BOS). I can fully automate this entire role with custom software for a one-time flat fee (usually < $10k). \n\nYou avoid payroll taxes, bad hires, and delays. Open to a 5-min chat this week to see if I can automate this seat?`;
     }
