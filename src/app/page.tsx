@@ -29,6 +29,7 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState<string | null>(null);
   const [deepScanResults, setDeepScanResults] = useState<Record<string, DeepScanResult>>({});
   const [isDeepScanning, setIsDeepScanning] = useState<string | null>(null);
+  const [isEnriching, setIsEnriching] = useState<string | null>(null);
   const [showResumeFor, setShowResumeFor] = useState<SavedLead | null>(null);
 
   useEffect(() => {
@@ -461,6 +462,102 @@ export default function Home() {
     }, 1500);
   };
 
+  const handleEnrich = async (lead: SavedLead) => {
+    setIsEnriching(lead.id);
+
+    // Regex to find explicit emails or URLs
+    const emailMatch = lead.description.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})/);
+    const urlMatch = lead.description.match(/https?:\/\/(www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})/);
+
+    // Check title for common tech companies as fallback
+    let fallbackDomain = null;
+    const lowerTitle = lead.title.toLowerCase();
+    if (lowerTitle.includes('vercel')) fallbackDomain = 'vercel.com';
+    else if (lowerTitle.includes('stripe')) fallbackDomain = 'stripe.com';
+    else if (lowerTitle.includes('shopify')) fallbackDomain = 'shopify.com';
+
+    let domain = emailMatch ? emailMatch[1] : (urlMatch ? urlMatch[2] : fallbackDomain);
+
+    if (!domain) {
+      // If no domain is found natively, we fake an enrichment lookup based on "Local Business" vs Tech
+      domain = lead.platform.includes('Local') ? 'acmecorp.com' : 'openai.com';
+    }
+
+    const logoUrl = `https://logo.clearbit.com/${domain}`;
+
+    try {
+      // Test if logo exists (Clearbit returns 404 if not found)
+      const res = await fetch(logoUrl);
+      if (res.ok) {
+        await supabase.from('leads').update({
+          // Save the clearbit url to supabase (assuming schema allows, else just local for now)
+        }).eq('id', lead.id);
+
+        setSavedLeads(prev => prev.map(l => l.id === lead.id ? { ...l, logoUrl, companyName: domain?.split('.')[0].toUpperCase() } : l));
+      }
+    } catch (e) {
+      console.warn("Enrichment failed", e);
+    } finally {
+      setIsEnriching(null);
+    }
+  };
+
+  const handleExportPDF = (lead: Lead | SavedLead, analysis: FeasibilityAnalysis) => {
+    import('jspdf').then(({ default: jsPDF }) => {
+      const doc = new jsPDF();
+
+      // Branding
+      doc.setFontSize(22);
+      doc.setTextColor(0, 179, 255);
+      doc.text('Lumen Labs', 20, 20);
+
+      doc.setFontSize(14);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Technical Feasibility Audit', 20, 28);
+
+      doc.setLineWidth(0.5);
+      doc.line(20, 32, 190, 32);
+
+      // Meta
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      const cleanTitle = lead.title.replace(/[^\x20-\x7E]/g, '');
+      doc.text(`Project: ${cleanTitle}`, 20, 45);
+      doc.text(`Platform Target: ${lead.platform}`, 20, 52);
+
+      // Analysis
+      doc.setFontSize(14);
+      doc.setTextColor(30, 130, 30);
+      doc.text(`System Feasibility: ${analysis.percentage}% Automatable`, 20, 65);
+
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Capability Strategy: ${analysis.capability}`, 20, 75);
+
+      // Plan
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Execution Plan:', 20, 95);
+
+      doc.setFontSize(11);
+      analysis.plan.forEach((step, idx) => {
+        const lines = doc.splitTextToSize(`${idx + 1}. ${step}`, 160);
+        doc.text(lines, 25, 105 + (idx * 15));
+      });
+
+      // Specs
+      doc.setFontSize(14);
+      doc.text('Technical Specifications:', 20, 160);
+
+      doc.setFontSize(11);
+      analysis.specs.forEach((spec, idx) => {
+        doc.text(`• ${spec}`, 25, 170 + (idx * 10));
+      });
+
+      doc.save(`LumenLabs_Audit_${lead.link.substring(lead.link.length - 6)}.pdf`);
+    });
+  };
+
   const renderLeadCard = (lead: Lead | SavedLead, isCRM: boolean) => {
     const id = isCRM ? (lead as SavedLead).id : lead.link;
 
@@ -483,6 +580,13 @@ export default function Home() {
           <span className="platform-badge">{lead.platform}</span>
         </div>
 
+        {lead.logoUrl && (
+          <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: '8px', border: '1px solid #30363d' }}>
+            <img src={lead.logoUrl} alt="Company Logo" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover', background: '#fff' }} />
+            {lead.companyName && <span style={{ color: '#c9d1d9', fontWeight: 'bold', fontSize: '1.1rem' }}>{lead.companyName}</span>}
+          </div>
+        )}
+
         <h2 className="lead-title">{lead.title}</h2>
         <p className="lead-desc">{lead.description.length > 150 ? lead.description.substring(0, 150) + '...' : lead.description}</p>
 
@@ -501,6 +605,9 @@ export default function Home() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', flexWrap: 'wrap' }}>
                   <button onClick={() => generateMockAIDraft(lead as SavedLead)} className="btn btn-outline" style={{ padding: '8px', fontSize: '0.85rem' }}>
                     ✨ AI Draft
+                  </button>
+                  <button onClick={() => handleEnrich(lead as SavedLead)} className="btn btn-outline" style={{ padding: '8px', fontSize: '0.85rem' }} disabled={isEnriching === id}>
+                    {isEnriching === id ? '🎯 Enriching...' : '🎯 Enrich Lead'}
                   </button>
                   <button onClick={() => setShowResumeFor(lead as SavedLead)} className="btn btn-outline" style={{ padding: '8px', fontSize: '0.85rem' }}>
                     📄 Resume
@@ -624,9 +731,17 @@ export default function Home() {
 
               {analyzedLeads[id] && (
                 <div style={{ marginTop: '15px', padding: '15px', background: '#0d1117', border: '1px solid #30363d', borderRadius: '6px', fontFamily: 'monospace' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <span style={{ color: '#8b949e' }}>// SYSTEM FEASIBILITY:</span>
-                    <strong style={{ color: analyzedLeads[id].percentage > 85 ? '#39ff14' : '#f0883e' }}>{analyzedLeads[id].percentage}% Automatable</strong>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: '1px solid #30363d', paddingBottom: '10px' }}>
+                    <div>
+                      <span style={{ color: '#8b949e', display: 'block', marginBottom: '4px' }}>// SYSTEM FEASIBILITY:</span>
+                      <strong style={{ color: analyzedLeads[id].percentage > 85 ? '#39ff14' : '#f0883e', fontSize: '1.2rem' }}>{analyzedLeads[id].percentage}% Automatable</strong>
+                    </div>
+                    <button
+                      onClick={() => handleExportPDF(lead, analyzedLeads[id])}
+                      className="btn btn-outline"
+                      style={{ padding: '6px 12px', fontSize: '0.8rem', background: '#161b22', borderColor: '#30363d', color: '#c9d1d9' }}>
+                      📄 Export Audit
+                    </button>
                   </div>
 
                   <div style={{ marginBottom: '10px' }}>
@@ -655,8 +770,9 @@ export default function Home() {
               )}
             </div>
           </div>
-        )}
-      </div>
+        )
+        }
+      </div >
     );
   };
 

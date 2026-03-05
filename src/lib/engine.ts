@@ -86,6 +86,8 @@ export interface Lead {
     score: number;
     pitch: string;
     extractedBudget?: string;
+    companyName?: string;
+    logoUrl?: string;
 }
 
 export function extractBudget(text: string): string | undefined {
