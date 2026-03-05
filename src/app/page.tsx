@@ -20,6 +20,9 @@ export default function Home() {
   const [activePlatform, setActivePlatform] = useState<PlatformFilter>('All');
   const [searchHub, setSearchHub] = useState<string>('TX');
   const [sortOrder, setSortOrder] = useState<string>('Score (High-Low)');
+  const [timeFilter, setTimeFilter] = useState<string>('All Time');
+  const [budgetFilter, setBudgetFilter] = useState<string>('All Budgets');
+
   const [analyzedLeads, setAnalyzedLeads] = useState<Record<string, FeasibilityAnalysis>>({});
   const [isAnalyzing, setIsAnalyzing] = useState<string | null>(null);
   const [deepScanResults, setDeepScanResults] = useState<Record<string, DeepScanResult>>({});
@@ -41,8 +44,36 @@ export default function Home() {
     localStorage.setItem('leadSniperCRM', JSON.stringify(savedLeads));
   }, [savedLeads]);
 
-  const sortLeadsArray = (leadsArray: Lead[]) => {
-    return [...leadsArray].sort((a, b) => {
+  // We filter client-side to prevent over-fetching APIs 
+  const filteredAndSortedLeads = () => {
+    let result = [...leads];
+
+    // Time Filter
+    if (timeFilter !== 'All Time') {
+      const now = new Date().getTime();
+      const thresholds: { [key: string]: number } = {
+        'Last 24 Hours': 86400000,
+        'Last 3 Days': 259200000,
+        'Last Week': 604800000
+      };
+
+      if (thresholds[timeFilter]) {
+        result = result.filter(l => {
+          const pub = new Date(l.published).getTime();
+          return !isNaN(pub) && (now - pub) <= thresholds[timeFilter];
+        });
+      }
+    }
+
+    // Budget Filter
+    if (budgetFilter === 'High-Ticket ($10k+)') {
+      result = result.filter(l => l.extractedBudget && l.extractedBudget.includes('yr'));
+    } else if (budgetFilter === 'Hourly Only') {
+      result = result.filter(l => l.extractedBudget && l.extractedBudget.includes('hr'));
+    }
+
+    // Sort Logic
+    return result.sort((a, b) => {
       if (sortOrder === 'Score (High-Low)') {
         return b.score - a.score;
       }
@@ -356,7 +387,7 @@ export default function Home() {
 
       const results = await Promise.all(fetchers);
       const rawLeads = results.flat().slice(0, 150);
-      setLeads(sortLeadsArray(rawLeads));
+      setLeads(rawLeads);
     } catch (error) {
       console.error('Failed to fetch', error);
     } finally {
@@ -432,14 +463,25 @@ export default function Home() {
             <div className="pitch-section" style={{ marginTop: '15px' }}>
               <div className="pitch-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <strong style={{ fontSize: '0.85rem', color: '#8b949e' }}>Drafted Pitch</strong>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => generateMockAIDraft(lead as SavedLead)} className="btn btn-outline" style={{ padding: '4px 8px', fontSize: '0.8rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', flexWrap: 'wrap' }}>
+                  <button onClick={() => generateMockAIDraft(lead as SavedLead)} className="btn btn-outline" style={{ padding: '8px', fontSize: '0.85rem' }}>
                     ✨ AI Draft
                   </button>
-                  <button onClick={() => setShowResumeFor(lead as SavedLead)} className="btn btn-outline" style={{ padding: '4px 8px', fontSize: '0.8rem' }}>
+                  <button onClick={() => setShowResumeFor(lead as SavedLead)} className="btn btn-outline" style={{ padding: '8px', fontSize: '0.85rem' }}>
                     📄 Resume
                   </button>
-                  <button onClick={() => handleCopyPitch(lead.pitch, id)} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: '0.8rem' }}>
+                  <button
+                    onClick={() => {
+                      const subject = encodeURIComponent(`Regarding your post: ${lead.title}`);
+                      const body = encodeURIComponent(lead.pitch);
+                      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+                    }}
+                    className="btn btn-primary"
+                    style={{ padding: '8px', fontSize: '0.85rem', background: '#00b3ff', color: '#fff' }}
+                  >
+                    📧 1-Click Email
+                  </button>
+                  <button onClick={() => handleCopyPitch(lead.pitch, id)} className="btn btn-primary" style={{ padding: '8px', fontSize: '0.85rem' }}>
                     {copiedIndex === id ? 'Copied!' : 'Copy'}
                   </button>
                 </div>
@@ -699,10 +741,33 @@ export default function Home() {
               )}
 
               <select
+                className="time-filter"
+                value={timeFilter}
+                onChange={(e) => setTimeFilter(e.target.value)}
+                style={{ background: 'rgba(255,255,255,0.05)', color: '#c9d1d9', padding: '10px 12px', borderRadius: '6px', border: '1px solid #30363d' }}
+              >
+                <option value="All Time">🕒 All Time</option>
+                <option value="Last 24 Hours">🕒 Last 24 Hours</option>
+                <option value="Last 3 Days">🕒 Last 3 Days</option>
+                <option value="Last Week">🕒 Last Week</option>
+              </select>
+
+              <select
+                className="budget-filter"
+                value={budgetFilter}
+                onChange={(e) => setBudgetFilter(e.target.value)}
+                style={{ background: 'rgba(255,255,255,0.05)', color: '#c9d1d9', padding: '10px 12px', borderRadius: '6px', border: '1px solid #30363d' }}
+              >
+                <option value="All Budgets">💰 All Budgets</option>
+                <option value="High-Ticket ($10k+)">💎 High-Ticket ($10k+)</option>
+                <option value="Hourly Only">⏱️ Hourly Only</option>
+              </select>
+
+              <select
                 className="sort-filter"
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value)}
-                style={{ background: 'rgba(255,255,255,0.05)', color: '#c9d1d9', padding: '6px 12px', borderRadius: '6px', border: '1px solid #30363d' }}
+                style={{ background: 'rgba(255,255,255,0.05)', color: '#c9d1d9', padding: '10px 12px', borderRadius: '6px', border: '1px solid #30363d' }}
               >
                 <option value="Score (High-Low)">🏆 Score (High-Low)</option>
                 <option value="Pay Rate (High-Low)">💰 Pay Rate (High-Low)</option>
@@ -719,13 +784,13 @@ export default function Home() {
               <div className="pulse-ring"></div>
               <p>Siphoning leads (Bypassing blocks)...</p>
             </div>
-          ) : leads.length === 0 ? (
+          ) : filteredAndSortedLeads().length === 0 ? (
             <div className="empty-state">
-              <p>No high-intent leads found right now. Check back soon.</p>
+              <p>No high-intent leads found matching these filters. Try adjusting your timeframe or budget constraint.</p>
             </div>
           ) : (
             <div className="scrolling-grid">
-              {leads.map(lead => renderLeadCard(lead, false))}
+              {filteredAndSortedLeads().map(lead => renderLeadCard(lead, false))}
             </div>
           )}
         </div>

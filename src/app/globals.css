@@ -6,11 +6,13 @@
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background-color: #07090f; /* Deeper cyber background */
-  background-image: 
+  background-color: #07090f;
+  /* Deeper cyber background */
+  background-image:
     radial-gradient(circle at 50% 0%, rgba(0, 255, 204, 0.05) 0%, transparent 40%),
     linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px); /* Radar grid */
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  /* Radar grid */
   background-size: 100% 100%, 40px 40px, 40px 40px;
   color: #c9d1d9;
   min-height: 100vh;
@@ -59,7 +61,10 @@ body {
 .lead-card::before {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0; height: 1px;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
   background: linear-gradient(90deg, transparent, rgba(0, 255, 204, 0.5), transparent);
 }
 
@@ -211,12 +216,15 @@ body {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #8b949e;
-  padding: 10px 24px;
+  padding: 12px 24px;
   border-radius: 30px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  flex: 1;
+  /* For mobile spanning */
+  text-align: center;
 }
 
 .tab-btn:hover {
@@ -303,6 +311,76 @@ body {
 }
 
 .stage-btn {
-  padding: 6px 12px;
+  padding: 8px 14px;
   font-size: 0.85rem;
+}
+
+/* --- Mobile Optimization Overrides --- */
+@media (max-width: 768px) {
+  .actions-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .actions-header>div {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100%;
+  }
+
+  .actions-header select,
+  .actions-header button {
+    width: 100% !important;
+    padding: 12px !important;
+    /* Larger touch targets */
+    font-size: 1rem !important;
+  }
+
+  .tabs {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .lead-card {
+    padding: 16px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .card-header>div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pitch-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 12px;
+  }
+
+  .pitch-header>div {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .stage-controls {
+    flex-wrap: wrap;
+    justify-content: center !important;
+  }
+
+  .stage-controls button {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .roi-calculator {
+    padding: 15px !important;
+  }
 }
