@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Lead, REDDIT_SOURCES, UPWORK_RSS_URL, CRAIGSLIST_STATES, WWR_RSS_URL, REMOTE_OK_RSS_URL, calculateScore, generatePitch, extractBudget, generateAntigravityAnalysis, FeasibilityAnalysis, generateTailoredResume, timeAgo, generateDeepScan, DeepScanResult } from '@/lib/engine';
+import { supabase } from '@/lib/supabase';
 
 export type PipelineStage = 'Saved' | 'Contacted' | 'Replied' | 'Closed';
 export type PlatformFilter = 'All' | 'Reddit' | 'Upwork' | 'Craigslist' | 'WWR' | 'RemoteOK' | 'Indeed' | 'Frustration' | 'Startup' | 'Local';
@@ -30,19 +31,32 @@ export default function Home() {
   const [showResumeFor, setShowResumeFor] = useState<SavedLead | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem('leadSniperCRM');
-    if (stored) {
-      setSavedLeads(JSON.parse(stored));
-    }
+    fetchSavedLeads();
   }, []);
+
+  const fetchSavedLeads = async () => {
+    const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
+    if (!error && data) {
+      // Map DB snake_case columns back to Frontend camelCase expectations
+      const mappedLeads = data.map((dbLead: any) => ({
+        id: dbLead.id,
+        platform: dbLead.platform,
+        title: dbLead.title,
+        description: dbLead.description,
+        link: dbLead.original_link,
+        published: dbLead.published,
+        score: dbLead.score,
+        extractedBudget: dbLead.extracted_budget,
+        pitch: dbLead.pitch,
+        stage: dbLead.stage as PipelineStage
+      }));
+      setSavedLeads(mappedLeads);
+    }
+  };
 
   useEffect(() => {
     fetchLeads();
   }, [activePlatform, searchHub, sortOrder]);
-
-  useEffect(() => {
-    localStorage.setItem('leadSniperCRM', JSON.stringify(savedLeads));
-  }, [savedLeads]);
 
   // We filter client-side to prevent over-fetching APIs 
   const filteredAndSortedLeads = () => {
@@ -401,28 +415,52 @@ export default function Home() {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const saveToCRM = (lead: Lead) => {
-    const id = btoa(lead.link).substring(0, 15);
-    if (!savedLeads.find(l => l.id === id)) {
-      const newSavedLead: SavedLead = { ...lead, id, stage: 'Saved' };
-      setSavedLeads([...savedLeads, newSavedLead]);
+  const saveToCRM = async (lead: Lead) => {
+    // Optimistic UI update
+    const tempId = btoa(lead.link).substring(0, 15);
+    if (savedLeads.find(l => l.link === lead.link)) return; // Prevents UI duplicates
+
+    const newSavedLead: SavedLead = { ...lead, id: tempId, stage: 'Saved' };
+    setSavedLeads([...savedLeads, newSavedLead]);
+
+    // Supabase Insertion
+    const { error } = await supabase.from('leads').insert([{
+      original_link: lead.link,
+      platform: lead.platform,
+      title: lead.title,
+      description: lead.description,
+      published: lead.published,
+      score: lead.score,
+      extracted_budget: lead.extractedBudget,
+      pitch: lead.pitch,
+      stage: 'Saved'
+    }]);
+
+    if (!error) {
+      fetchSavedLeads(); // Sync the true IDs from postgres
+    } else {
+      console.error("Failed to save to Supabase", error);
     }
   };
 
-  const updateLeadStage = (id: string, newStage: PipelineStage) => {
+  const updateLeadStage = async (id: string, newStage: PipelineStage) => {
     setSavedLeads(savedLeads.map(l => l.id === id ? { ...l, stage: newStage } : l));
+    await supabase.from('leads').update({ stage: newStage }).eq('id', id);
   };
 
-  const generateMockAIDraft = (lead: SavedLead) => {
-    setSavedLeads(savedLeads.map(l => l.id === lead.id ? { ...l, pitch: '🤖 Thinking...' } : l));
+  const generateMockAIDraft = async (lead: SavedLead) => {
+    setSavedLeads(savedLeads.map(l => l.id === lead.id ? { ...l, pitch: '🤖 AI Architect mode active. Scanning requirements...' } : l));
 
-    setTimeout(() => {
+    setTimeout(async () => {
       let newPitch = `Hi, I noticed your post on ${lead.platform.split(' ')[0]} regarding "${lead.title}".\n\n`;
-      newPitch += `I specialize in solving exactly these kinds of problems swiftly. `;
-      if (lead.extractedBudget) newPitch += `I see your budget is roughly ${lead.extractedBudget}, which works perfectly. `;
+      newPitch += `I specialize in solving exactly these kinds of problems swiftly using modern automation stacks (Make.com, Next.js, OpenAI). `;
+      if (lead.extractedBudget) newPitch += `I see your budget is roughly ${lead.extractedBudget}, which works perfectly for a rapid implementation. `;
       newPitch += `\n\nWhen do you have 10 minutes to chat this week?`;
 
       setSavedLeads(savedLeads.map(l => l.id === lead.id ? { ...l, pitch: newPitch } : l));
+
+      // Persist Draft to DB
+      await supabase.from('leads').update({ pitch: newPitch }).eq('id', lead.id);
     }, 1500);
   };
 
