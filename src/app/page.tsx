@@ -612,11 +612,16 @@ export default function Home() {
                   <button onClick={() => setShowResumeFor(lead as SavedLead)} className="btn btn-outline" style={{ padding: '8px', fontSize: '0.85rem' }}>
                     📄 Resume
                   </button>
+                  <a href={lead.link} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '8px', fontSize: '0.85rem', display: 'flex', justifyContent: 'center', alignItems: 'center', textDecoration: 'none' }}>
+                    🔗 View Post
+                  </a>
                   <button
                     onClick={() => {
+                      const emailMatch = lead.description.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/);
+                      const toEmail = emailMatch ? emailMatch[1] : '';
                       const subject = encodeURIComponent(`Regarding your post: ${lead.title}`);
                       const body = encodeURIComponent(lead.pitch);
-                      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+                      window.location.href = `mailto:${toEmail}?subject=${subject}&body=${body}`;
                     }}
                     className="btn btn-primary"
                     style={{ padding: '8px', fontSize: '0.85rem', background: '#00b3ff', color: '#fff' }}
