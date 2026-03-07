@@ -1,27 +1,53 @@
+export type JobCategory = 'Admin/Ops' | 'Development' | 'Sales' | 'Design' | 'Marketing' | 'AI & Automation';
+
 export const URGENCY_WORDS = ['urgent', 'asap', 'immediately', 'yesterday', 'emergency', 'fast', 'quick', 'down right now', 'crashed'];
 export const BUDGET_WORDS = ['willing to pay', 'budget', '$$', 'cash', 'paid', 'high ticket', 'lucrative', 'compensation'];
 export const TIME_WASTERS = ['equity', 'unpaid', 'rev share', 'revenue share', 'co-founder', 'cofounder', 'startup opportunity', 'no budget', 'deferred pay'];
 export const BOS_KEYWORDS = ['mess', 'manual data entry', 'excel', 'spreadsheets', 'unorganized', 'too many emails', 'administrative', 'bottleneck', 'data entry', 'virtual assistant', 'office manager', 'operations', 'logistics', 'automation', 'zapier', 'makeing mistakes', 'repetitive', 'typing'];
+export const DEV_KEYWORDS = ['react', 'next.js', 'nextjs', 'python', 'node', 'typescript', 'developer', 'engineer', 'frontend', 'backend', 'fullstack', 'aws', 'api', 'building', 'software'];
+export const SALES_KEYWORDS = ['sales', 'bdr', 'sdr', 'account executive', 'closer', 'outbound', 'closing', 'prospecting', 'cold call', 'lead gen', 'leads'];
+export const DESIGN_KEYWORDS = ['designer', 'figma', 'ui/ux', 'graphic', 'branding', 'creative', 'web design', 'logo', 'illustrator'];
+export const MARKETING_KEYWORDS = ['marketing', 'seo', 'growth', 'ads', 'facebook ads', 'analytics', 'copywriting', 'media buying', 'campaign'];
+export const AI_KEYWORDS = ['ai', 'llm', 'openai', 'gpt', 'machine learning', 'chatbot', 'rag', 'langchain', 'custom gpt', 'agent'];
+
 export const PHYSICAL_PRESENCE = ['receptionist', 'door', 'warehouse', 'valet', 'in-person', 'front desk', 'cleaning', 'driving', 'forklift', 'cashier', 'stocker', 'janitor', 'delivery', 'cook', 'server', 'bartender', 'guard'];
 export const OUT_OF_SCOPE_TECH = ['c++', 'java ', ' swift ', 'ios', 'android', 'kotlin', ' rust ', 'embedded', 'unity', 'unreal', '.net', 'c#', 'objective-c', 'game developer'];
 export const ANTIGRAVITY_TECH = ['next.js', 'react', 'python', 'supabase', 'vercel', 'automation', 'zapier', 'make.com', 'ai ', 'llm', 'openai', 'scraping', 'typescript', 'tailwind', 'api', 'chatbot', 'agent'];
 export const REDDIT_SOURCES = ['forhire', 'smallbusiness', 'Entrepreneur', 'sweatystartup', 'slavelabour'];
 
-// Upwork specifically uses RSS for custom searches. 
-// %28 = ( ... %29 = ) ... %20OR%20 = OR
-export const UPWORK_RSS_URL = "https://www.upwork.com/ab/feed/jobs/rss?q=%28data%20entry%20OR%20virtual%20assistant%20OR%20admin%20OR%20excel%20OR%20spreadsheet%20OR%20zapier%20OR%20automation%29";
+export const getUpworkRssUrl = (category: JobCategory) => {
+    let q = "data%20entry%20OR%20virtual%20assistant%20OR%20admin%20OR%20excel%20OR%20spreadsheet%20OR%20automation";
+    if (category === 'Development') q = "react%20OR%20nextjs%20OR%20python%20OR%20developer%20OR%20engineer";
+    if (category === 'Sales') q = "sales%20OR%20bdr%20OR%20sdr%20OR%20outbound%20OR%20closer";
+    if (category === 'Design') q = "designer%20OR%20figma%20OR%20ui%2Fux%20OR%20graphic%20OR%20brand";
+    if (category === 'Marketing') q = "marketing%20OR%20seo%20OR%20growth%20OR%20ads%20OR%20copywriter";
+    if (category === 'AI & Automation') q = "ai%20OR%20llm%20OR%20openai%20OR%20zapier%20OR%20make.com";
+    return `https://www.upwork.com/ab/feed/jobs/rss?q=%28${q}%29`;
+};
 
 // Niche Developer Job Boards
 export const WWR_RSS_URL = "https://weworkremotely.com/categories/remote-customer-support-jobs.rss";
 export const REMOTE_OK_RSS_URL = "https://remoteok.com/api"; // Returns JSON natively, but we can treat it similarly.
 
-// Tier 1: The Frustration Engine (Twitter/X Google Dork)
-// We use Google News to index Twitter posts containing specific pain points.
-export const TWITTER_FRUSTRATION_RSS = 'https://news.google.com/rss/search?q=site:twitter.com+"hate+spreadsheets"+OR+"drowning+in+data"+OR+"Zapier+is+broken"+OR+"manual+entry"+OR+"too+many+tools"+OR+"data+migration"&hl=en-US&gl=US&ceid=US:en';
+export const getTwitterFrustrationRss = (category: JobCategory) => {
+    let q = '"hate+spreadsheets"+OR+"drowning+in+data"+OR+"Zapier+is+broken"+OR+"manual+entry"+OR+"too+many+tools"+OR+"data+migration"';
+    if (category === 'Development') q = '"hate+react"+OR+"python+broken"+OR+"need+a+dev"+OR+"website+down"';
+    if (category === 'Sales') q = '"no+leads"+OR+"outbound+dead"+OR+"need+more+calls"+OR+"cold+email+spam"';
+    if (category === 'Design') q = '"hate+figma"+OR+"ugly+website"+OR+"need+a+designer"+OR+"branding+sucks"';
+    if (category === 'Marketing') q = '"ads+not+converting"+OR+"high+cpa"+OR+"seo+is+dead"+OR+"need+more+traffic"';
+    if (category === 'AI & Automation') q = '"zapier+is+broken"+OR+"need+an+ai+agent"+OR+"openai+down"+OR+"make.com+error"';
+    return `https://news.google.com/rss/search?q=site:twitter.com+${q}&hl=en-US&gl=US&ceid=US:en`;
+};
 
-// Tier 1: The Startup Drain (Wellfound/AngelList workaround)
-// Since Wellfound is heavily gated, we search YCombinator's HackerNews Who Is Hiring instead for max startup density.
-export const HACKERNEWS_API_BASE = "https://hn.algolia.com/api/v1/search_by_date?query=hiring+operations+OR+admin+OR+data&tags=comment";
+export const getHackerNewsApiUrl = (category: JobCategory) => {
+    let q = "hiring+operations+OR+admin+OR+data";
+    if (category === 'Development') q = "hiring+developer+OR+engineer+OR+react+OR+python";
+    if (category === 'Sales') q = "hiring+sales+OR+bdr+OR+account+executive";
+    if (category === 'Design') q = "hiring+designer+OR+ui+OR+ux";
+    if (category === 'Marketing') q = "hiring+marketing+OR+seo+OR+growth";
+    if (category === 'AI & Automation') q = "hiring+ai+OR+llm+OR+machine+learning";
+    return `https://hn.algolia.com/api/v1/search_by_date?query=${q}&tags=comment`;
+};
 
 // Craigslist Blast Radius - 50 State Mapping
 export const CRAIGSLIST_STATES: Record<string, { label: string, subdomains: string[] }> = {
@@ -148,6 +174,11 @@ export function calculateScore(title: string, description: string): number {
     URGENCY_WORDS.forEach(word => { if (text.includes(word)) score += 15; });
     BUDGET_WORDS.forEach(word => { if (text.includes(word)) score += 10; });
     BOS_KEYWORDS.forEach(word => { if (text.includes(word)) score += 20; });
+    DEV_KEYWORDS.forEach(word => { if (text.includes(word)) score += 15; });
+    SALES_KEYWORDS.forEach(word => { if (text.includes(word)) score += 15; });
+    DESIGN_KEYWORDS.forEach(word => { if (text.includes(word)) score += 15; });
+    MARKETING_KEYWORDS.forEach(word => { if (text.includes(word)) score += 15; });
+    AI_KEYWORDS.forEach(word => { if (text.includes(word)) score += 25; });
     TIME_WASTERS.forEach(word => { if (text.includes(word)) score -= 50; });
     ANTIGRAVITY_TECH.forEach(word => { if (text.includes(word)) score += 30; });
 

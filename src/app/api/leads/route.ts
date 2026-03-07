@@ -7,10 +7,10 @@ import {
     Lead,
     REDDIT_SOURCES,
     CRAIGSLIST_STATES,
-    HACKERNEWS_API_BASE,
+    getHackerNewsApiUrl,
     WWR_RSS_URL,
     REMOTE_OK_RSS_URL,
-    TWITTER_FRUSTRATION_RSS
+    getTwitterFrustrationRss
 } from '@/lib/engine'; // Re-use the engine's definitions
 
 export const dynamic = 'force-dynamic';
@@ -94,7 +94,7 @@ async function fetchHackerNews(): Promise<Lead[]> {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-        const res = await fetch(HACKERNEWS_API_BASE, {
+        const res = await fetch(getHackerNewsApiUrl('Admin/Ops'), {
             signal: controller.signal,
             next: { revalidate: 300 }
         });
@@ -180,7 +180,7 @@ async function fetchTwitterFrustration(): Promise<Lead[]> {
     const jobs: Lead[] = [];
     try {
         const parser = new Parser();
-        const feed = await parser.parseURL(TWITTER_FRUSTRATION_RSS);
+        const feed = await parser.parseURL(getTwitterFrustrationRss('Admin/Ops'));
 
         feed.items.forEach(item => {
             jobs.push({

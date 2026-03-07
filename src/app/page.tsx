@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Lead, REDDIT_SOURCES, UPWORK_RSS_URL, CRAIGSLIST_STATES, WWR_RSS_URL, REMOTE_OK_RSS_URL, calculateScore, generatePitch, extractBudget, generateAntigravityAnalysis, FeasibilityAnalysis, generateTailoredResume, timeAgo, generateDeepScan, DeepScanResult } from '@/lib/engine';
+import { Lead, JobCategory, REDDIT_SOURCES, getUpworkRssUrl, CRAIGSLIST_STATES, WWR_RSS_URL, REMOTE_OK_RSS_URL, calculateScore, generatePitch, extractBudget, generateAntigravityAnalysis, FeasibilityAnalysis, generateTailoredResume, timeAgo, generateDeepScan, DeepScanResult, getTwitterFrustrationRss, getHackerNewsApiUrl } from '@/lib/engine';
 import { supabase } from '@/lib/supabase';
 import DashboardStats from '@/components/DashboardStats';
 
@@ -20,6 +20,7 @@ export default function Home() {
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'radar' | 'crm'>('radar');
   const [activePlatform, setActivePlatform] = useState<PlatformFilter>('All');
+  const [activeJobCategory, setActiveJobCategory] = useState<JobCategory>('Admin/Ops');
   const [searchHub, setSearchHub] = useState<string>('TX');
   const [sortOrder, setSortOrder] = useState<string>('Score (High-Low)');
   const [timeFilter, setTimeFilter] = useState<string>('All Time');
@@ -146,7 +147,7 @@ export default function Home() {
 
   const fetchUpwork = async (): Promise<Lead[]> => {
     try {
-      const feedUrl = encodeURIComponent(UPWORK_RSS_URL);
+      const feedUrl = encodeURIComponent(getUpworkRssUrl(activeJobCategory));
       const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`);
       if (!res.ok) return [];
       const data = await res.json();
@@ -178,7 +179,13 @@ export default function Home() {
 
     const promises = targets.map(async (subdomain) => {
       try {
-        const feedUrl = encodeURIComponent(`https://${subdomain}.craigslist.org/search/ofc?format=rss`);
+        let categoryCode = "ofc"; // office/commercial
+        if (activeJobCategory === 'Development') categoryCode = "sof"; // software
+        if (activeJobCategory === 'Sales') categoryCode = "sls"; // sales
+        if (activeJobCategory === 'Design') categoryCode = "art"; // art/design
+        if (activeJobCategory === 'Marketing') categoryCode = "mar"; // marketing
+        if (activeJobCategory === 'AI & Automation') categoryCode = "sof"; // closest
+        const feedUrl = encodeURIComponent(`https://${subdomain}.craigslist.org/search/${categoryCode}?format=rss`);
         const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`);
         if (!res.ok) return [];
         const data = await res.json();
@@ -269,7 +276,14 @@ export default function Home() {
     try {
       // Indeed blocks direct scraping with 403s. We shift this feed to use Google News indexing of Indeed/LinkedIn jobs.
       // This bypasses Cloudflare checks entirely while still capturing high-signal platform data.
-      const query = 'site:indeed.com OR site:linkedin.com/jobs "operations" OR "admin" OR "data entry"';
+      let queryKeywords = '"operations" OR "admin" OR "data entry"';
+      if (activeJobCategory === 'Development') queryKeywords = '"react" OR "python" OR "developer" OR "engineer"';
+      if (activeJobCategory === 'Sales') queryKeywords = '"sales" OR "bdr" OR "account executive"';
+      if (activeJobCategory === 'Design') queryKeywords = '"designer" OR "ui/ux" OR "figma"';
+      if (activeJobCategory === 'Marketing') queryKeywords = '"marketing" OR "seo" OR "copywriter"';
+      if (activeJobCategory === 'AI & Automation') queryKeywords = '"ai" OR "machine learning" OR "automation" OR "zapier"';
+
+      const query = `site:indeed.com OR site:linkedin.com/jobs ${queryKeywords}`;
       const feedUrl = encodeURIComponent(`https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`);
       const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`);
 
@@ -304,7 +318,8 @@ export default function Home() {
 
   const fetchFrustration = async (): Promise<Lead[]> => {
     try {
-      const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent('https://news.google.com/rss/search?q=site:twitter.com+"hate+spreadsheets"+OR+"drowning+in+data"+OR+"Zapier+is+broken"+OR+"manual+entry"&hl=en-US&gl=US&ceid=US:en')}`);
+      const feedUrl = encodeURIComponent(getTwitterFrustrationRss(activeJobCategory));
+      const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${feedUrl}`);
       if (!res.ok) return [];
       const data = await res.json();
       const leads: Lead[] = [];
@@ -328,7 +343,7 @@ export default function Home() {
 
   const fetchHackerNews = async (): Promise<Lead[]> => {
     try {
-      const res = await fetch("https://hn.algolia.com/api/v1/search_by_date?query=hiring+operations+OR+admin+OR+data&tags=comment");
+      const res = await fetch(getHackerNewsApiUrl(activeJobCategory));
       if (!res.ok) return [];
       const data = await res.json();
       const leads: Lead[] = [];
@@ -357,7 +372,13 @@ export default function Home() {
       // Free Tier Hack: We use Google News RSS to find recent indexed posts from local directories
       // or "law firm", "plumber", "roofing" in a specific area. 
       // For a true Maps integration, you'd insert a custom Google Places API route here.
-      const query = "law firm OR roofing OR accounting OR wealth management OR dental OR clinic OR hvac";
+      let query = "law firm OR roofing OR accounting OR wealth management OR dental OR clinic OR hvac"; // default
+      if (activeJobCategory === 'Development') query = "software agency OR web design OR tech startup OR IT services";
+      if (activeJobCategory === 'Sales') query = "dealership OR real estate OR broker OR agency";
+      if (activeJobCategory === 'Design') query = "advertising agency OR creative studio OR brand agency";
+      if (activeJobCategory === 'Marketing') query = "marketing agency OR digital marketing OR SEO agency";
+      if (activeJobCategory === 'AI & Automation') query = "AI startup OR tech company OR SAAS";
+
       const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(`https://news.google.com/rss/search?q=${query}+"hiring"+OR+"operations"&hl=en-US&gl=US&ceid=US:en`)}`);
 
       if (!res.ok) return [];
@@ -828,6 +849,29 @@ export default function Home() {
     );
   };
 
+  const handleExportResumePDF = (lead: SavedLead) => {
+    import('jspdf').then(({ default: jsPDF }) => {
+      const doc = new jsPDF();
+
+      // Basic styling
+      doc.setFontSize(22);
+      doc.setTextColor(0, 179, 255);
+      doc.text('Tailored Resume', 20, 20);
+
+      doc.setLineWidth(0.5);
+      doc.line(20, 25, 190, 25);
+
+      doc.setFontSize(11);
+      doc.setTextColor(50, 50, 50);
+
+      const text = generateTailoredResume(lead);
+      const lines = doc.splitTextToSize(text, 170);
+      doc.text(lines, 20, 35);
+
+      doc.save(`Resume_${lead.companyName || 'Export'}.pdf`);
+    });
+  };
+
   return (
     <div className="container">
       <header className="header">
@@ -883,6 +927,20 @@ export default function Home() {
                 <option value="Frustration">Frustration Search</option>
                 <option value="Startup">Startup Desk (HN)</option>
                 <option value="Local">Local Business</option>
+              </select>
+
+              <select
+                className="job-category-filter"
+                value={activeJobCategory}
+                onChange={(e) => setActiveJobCategory(e.target.value as JobCategory)}
+                style={{ background: '#161b22', color: '#ffffff', padding: '10px 12px', borderRadius: '6px', border: '1px solid #30363d', appearance: 'none', marginLeft: '5px' }}
+              >
+                <option value="Admin/Ops">👔 Admin/Ops</option>
+                <option value="Development">💻 Development</option>
+                <option value="Sales">📈 Sales</option>
+                <option value="Design">🎨 Design</option>
+                <option value="Marketing">📢 Marketing</option>
+                <option value="AI & Automation">🤖 AI & Automation</option>
               </select>
 
               {(activePlatform === 'All' || activePlatform === 'Craigslist') && (
@@ -975,6 +1033,13 @@ export default function Home() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', borderBottom: '2px solid #eaeaea', paddingBottom: '15px' }}>
               <h2 style={{ margin: 0, color: '#0d1117' }}>Resume Preview (Tailored)</h2>
               <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => handleExportResumePDF(showResumeFor)}
+                  className="btn btn-primary"
+                  style={{ background: '#00b3ff', color: '#fff' }}
+                >
+                  📄 Download PDF
+                </button>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(generateTailoredResume(showResumeFor));

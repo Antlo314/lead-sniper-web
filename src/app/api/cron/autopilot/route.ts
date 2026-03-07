@@ -3,11 +3,11 @@ import { supabase } from '@/lib/supabase';
 import {
     Lead,
     REDDIT_SOURCES,
-    UPWORK_RSS_URL,
+    getUpworkRssUrl,
     WWR_RSS_URL,
     REMOTE_OK_RSS_URL,
-    TWITTER_FRUSTRATION_RSS,
-    HACKERNEWS_API_BASE,
+    getTwitterFrustrationRss,
+    getHackerNewsApiUrl,
     calculateScore,
     generatePitch,
     extractBudget
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
         // 2. Fetch specific high-yield platforms only to save time/compute
         const fetchHackerNews = async (): Promise<Lead[]> => {
             try {
-                const res = await fetch(HACKERNEWS_API_BASE);
+                const res = await fetch(getHackerNewsApiUrl('Admin/Ops'));
                 if (!res.ok) return [];
                 const data = await res.json();
                 const leads: Lead[] = [];
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
 
         const fetchUpwork = async (): Promise<Lead[]> => {
             try {
-                const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(UPWORK_RSS_URL)}`);
+                const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(getUpworkRssUrl('Admin/Ops'))}`);
                 if (!res.ok) return [];
                 const data = await res.json();
                 const leads: Lead[] = [];
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
 
         const fetchFrustration = async (): Promise<Lead[]> => {
             try {
-                const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(TWITTER_FRUSTRATION_RSS)}`);
+                const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(getTwitterFrustrationRss('Admin/Ops'))}`);
                 if (!res.ok) return [];
                 const data = await res.json();
                 const leads: Lead[] = [];
