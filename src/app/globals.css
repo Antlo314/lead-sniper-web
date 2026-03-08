@@ -162,6 +162,8 @@ body {
   justify-content: flex-end;
   gap: 12px;
   margin-top: 20px;
+  flex-wrap: wrap;
+  /* Added for mobile wrapping of the email button */
 }
 
 .btn {
@@ -366,8 +368,20 @@ body {
   .pitch-header>div {
     width: 100%;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
+    /* Stack buttons vertically on very small screens for better touch targets */
     gap: 8px;
+  }
+
+  .action-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .action-bar>a,
+  .action-bar>button {
+    text-align: center;
+    width: 100%;
   }
 
   .stage-controls {

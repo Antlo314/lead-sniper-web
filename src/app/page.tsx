@@ -50,6 +50,7 @@ export default function Home() {
         published: dbLead.published,
         score: dbLead.score,
         extractedBudget: dbLead.extracted_budget,
+        extractedEmail: dbLead.extracted_email,
         pitch: dbLead.pitch,
         stage: dbLead.stage as PipelineStage
       }));
@@ -451,6 +452,7 @@ export default function Home() {
       published: lead.published,
       score: lead.score,
       extracted_budget: lead.extractedBudget,
+      extracted_email: lead.extractedEmail,
       pitch: lead.pitch,
       stage: 'Saved'
     }]);
@@ -613,6 +615,9 @@ export default function Home() {
 
         {!isCRM && (
           <div className="action-bar">
+            {lead.extractedEmail && (
+              <a href={`mailto:${lead.extractedEmail}`} className="btn btn-outline" style={{ borderColor: '#00b3ff', color: '#00b3ff' }}>📧 Contact: {lead.extractedEmail}</a>
+            )}
             <a href={lead.link} target="_blank" rel="noopener noreferrer" className="btn btn-outline">View Post</a>
             <button onClick={() => saveToCRM(lead)} className="btn btn-primary">Save to CRM</button>
           </div>
@@ -639,7 +644,7 @@ export default function Home() {
                   <button
                     onClick={() => {
                       const emailMatch = lead.description.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/);
-                      const toEmail = emailMatch ? emailMatch[1] : '';
+                      const toEmail = lead.extractedEmail || (emailMatch ? emailMatch[1] : '');
                       const subject = encodeURIComponent(`Regarding your post: ${lead.title}`);
                       const body = encodeURIComponent(lead.pitch);
                       window.location.href = `mailto:${toEmail}?subject=${subject}&body=${body}`;
@@ -647,7 +652,7 @@ export default function Home() {
                     className="btn btn-primary"
                     style={{ padding: '8px', fontSize: '0.85rem', background: '#00b3ff', color: '#fff' }}
                   >
-                    📧 1-Click Email
+                    📧 1-Click Email {lead.extractedEmail && `(${lead.extractedEmail})`}
                   </button>
                   <button onClick={() => handleCopyPitch(lead.pitch, id)} className="btn btn-primary" style={{ padding: '8px', fontSize: '0.85rem' }}>
                     {copiedIndex === id ? 'Copied!' : 'Copy'}

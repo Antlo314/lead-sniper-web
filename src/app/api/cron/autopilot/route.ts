@@ -10,7 +10,8 @@ import {
     getHackerNewsApiUrl,
     calculateScore,
     generatePitch,
-    extractBudget
+    extractBudget,
+    extractEmail
 } from '@/lib/engine';
 
 export async function GET(request: Request) {
@@ -43,7 +44,8 @@ export async function GET(request: Request) {
                         ...rawLead,
                         score: calculateScore(rawLead.title, rawLead.description) + 15,
                         pitch: generatePitch(rawLead),
-                        extractedBudget: extractBudget(cleanDesc)
+                        extractedBudget: extractBudget(cleanDesc),
+                        extractedEmail: extractEmail(cleanDesc)
                     });
                 });
                 return leads;
@@ -69,7 +71,8 @@ export async function GET(request: Request) {
                         ...rawLead,
                         score: calculateScore(rawLead.title, rawLead.description),
                         pitch: generatePitch(rawLead),
-                        extractedBudget: extractBudget(`${item.title} ${cleanDesc}`)
+                        extractedBudget: extractBudget(`${item.title} ${cleanDesc}`),
+                        extractedEmail: extractEmail(`${item.title} ${cleanDesc}`)
                     });
                 });
                 return leads;
@@ -93,7 +96,8 @@ export async function GET(request: Request) {
                     leads.push({
                         ...rawLead,
                         score: calculateScore(rawLead.title, rawLead.description) + 20,
-                        pitch: generatePitch(rawLead)
+                        pitch: generatePitch(rawLead),
+                        extractedEmail: extractEmail(item.content || item.description || '')
                     });
                 });
                 return leads;
@@ -127,6 +131,7 @@ export async function GET(request: Request) {
                 published: lead.published,
                 score: lead.score,
                 extracted_budget: lead.extractedBudget || null,
+                extracted_email: lead.extractedEmail || null,
                 pitch: lead.pitch,
                 stage: 'Saved'
             });

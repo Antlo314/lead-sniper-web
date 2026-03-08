@@ -3,6 +3,7 @@ import Parser from 'rss-parser';
 import {
     calculateScore,
     extractBudget,
+    extractEmail,
     generatePitch,
     Lead,
     REDDIT_SOURCES,
@@ -242,6 +243,7 @@ export async function GET() {
             const textForBudget = `${lead.title} ${lead.description}`;
             const calculatedScore = calculateScore(lead.title, lead.description);
             const budget = extractBudget(textForBudget);
+            const email = extractEmail(textForBudget);
 
             // Generate pitch needs a lead object without score/pitch according to engine.ts interface
             const leadForPitch = {
@@ -250,14 +252,16 @@ export async function GET() {
                 description: lead.description,
                 link: lead.link,
                 published: lead.published,
-                extractedBudget: budget
+                extractedBudget: budget,
+                extractedEmail: email
             };
 
             return {
                 ...lead,
                 score: calculatedScore,
                 pitch: generatePitch(leadForPitch),
-                extractedBudget: budget
+                extractedBudget: budget,
+                extractedEmail: email
             };
         }).sort((a, b) => (b.score || 0) - (a.score || 0));
 

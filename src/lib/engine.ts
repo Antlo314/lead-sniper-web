@@ -114,6 +114,7 @@ export interface Lead {
     extractedBudget?: string;
     companyName?: string;
     logoUrl?: string;
+    extractedEmail?: string;
 }
 
 export function extractBudget(text: string): string | undefined {
@@ -155,6 +156,16 @@ export function extractBudget(text: string): string | undefined {
     const usdMatch = usdRegex.exec(text);
     if (usdMatch) {
         return `$$${usdMatch[1]}`;
+    }
+    return undefined;
+}
+
+export function extractEmail(text: string): string | undefined {
+    // Basic regex to find emails avoiding mailto: tags gracefully if stripping html misses it.
+    const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/i;
+    const match = emailRegex.exec(text);
+    if (match) {
+        return match[1];
     }
     return undefined;
 }

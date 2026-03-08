@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS leads (
   published timestamp with time zone NOT NULL,
   score integer DEFAULT 0,
   extracted_budget text,
+  extracted_email text,
   pitch text,
   stage text DEFAULT 'Saved',
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
